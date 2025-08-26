@@ -183,7 +183,7 @@ export default function HomePage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            <Card className="group hover:shadow-lg transition-shadow">
+            <Card className="group hover:shadow-xl hover:scale-[1.02] transition-all duration-300 border-2 hover:border-blue-200">
               <CardHeader>
                 <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4 group-hover:bg-blue-200 transition-colors">
                   <FileText className="w-6 h-6 text-blue-600" />
@@ -195,16 +195,20 @@ export default function HomePage() {
                   Explore real-world examples of organizations that have achieved innovation excellence 
                   through IIICI certification.
                 </p>
-                <Button variant="ghost" className="p-0 h-auto" asChild>
+                <Button 
+                  variant="outline" 
+                  className="w-full mt-4 group-hover:bg-blue-50 group-hover:border-blue-300 group-hover:text-blue-700 transition-all duration-200" 
+                  asChild
+                >
                   <Link href="/case-studies">
                     Read Case Studies
-                    <ArrowRight className="w-4 h-4 ml-2" />
+                    <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
                   </Link>
                 </Button>
               </CardContent>
             </Card>
 
-            <Card className="group hover:shadow-lg transition-shadow">
+            <Card className="group hover:shadow-xl hover:scale-[1.02] transition-all duration-300 border-2 hover:border-green-200">
               <CardHeader>
                 <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4 group-hover:bg-green-200 transition-colors">
                   <TrendingUp className="w-6 h-6 text-green-600" />
@@ -216,16 +220,20 @@ export default function HomePage() {
                   Access the latest research, trends, and best practices in organizational innovation 
                   and capability building.
                 </p>
-                <Button variant="ghost" className="p-0 h-auto" asChild>
+                <Button 
+                  variant="outline" 
+                  className="w-full mt-4 group-hover:bg-green-50 group-hover:border-green-300 group-hover:text-green-700 transition-all duration-200" 
+                  asChild
+                >
                   <Link href="/insights">
                     Explore Insights
-                    <ArrowRight className="w-4 h-4 ml-2" />
+                    <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
                   </Link>
                 </Button>
               </CardContent>
             </Card>
 
-            <Card className="group hover:shadow-lg transition-shadow">
+            <Card className="group hover:shadow-xl hover:scale-[1.02] transition-all duration-300 border-2 hover:border-purple-200">
               <CardHeader>
                 <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4 group-hover:bg-purple-200 transition-colors">
                   <Users className="w-6 h-6 text-purple-600" />
@@ -237,10 +245,14 @@ export default function HomePage() {
                   Connect with innovation experts, certified organizations, and thought leaders 
                   in the IIICI community.
                 </p>
-                <Button variant="ghost" className="p-0 h-auto" asChild>
+                <Button 
+                  variant="outline" 
+                  className="w-full mt-4 group-hover:bg-purple-50 group-hover:border-purple-300 group-hover:text-purple-700 transition-all duration-200" 
+                  asChild
+                >
                   <Link href="/network">
                     Join Network
-                    <ArrowRight className="w-4 h-4 ml-2" />
+                    <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
                   </Link>
                 </Button>
               </CardContent>
