@@ -1,13 +1,13 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useData } from "@/contexts/data-context"
-import { Building2 } from "lucide-react"
+import { Building2, Upload, X, Image } from "lucide-react"
 
 export function InstitutionSetup() {
   const { state, updateInstitution } = useData()
@@ -18,8 +18,11 @@ export function InstitutionSetup() {
     country: "",
     contactEmail: "",
     website: "",
-    description: ""
+    description: "",
+    logo: ""
   })
+  const [logoPreview, setLogoPreview] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const application = state.currentApplication
 
@@ -32,14 +35,54 @@ export function InstitutionSetup() {
         country: application.institutionData.country || "",
         contactEmail: application.institutionData.contactEmail || "",
         website: application.institutionData.website || "",
-        description: application.institutionData.description || ""
+        description: application.institutionData.description || "",
+        logo: application.institutionData.logo || ""
       })
+      // Set logo preview if logo exists
+      if (application.institutionData.logo) {
+        setLogoPreview(application.institutionData.logo)
+      }
     }
   }, [application?.institutionData])
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
     updateInstitution({ [field]: value })
+  }
+
+  const handleLogoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        alert('Please select an image file')
+        return
+      }
+      
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        alert('File size must be less than 5MB')
+        return
+      }
+
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        const result = e.target?.result as string
+        setLogoPreview(result)
+        setFormData(prev => ({ ...prev, logo: result }))
+        updateInstitution({ logo: result })
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  const removeLogo = () => {
+    setLogoPreview(null)
+    setFormData(prev => ({ ...prev, logo: "" }))
+    updateInstitution({ logo: "" })
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ""
+    }
   }
 
   const isFormValid = () => {
@@ -145,6 +188,58 @@ export function InstitutionSetup() {
                 onChange={(e) => handleInputChange("website", e.target.value)}
                 placeholder="https://your-website.com"
               />
+            </div>
+          </div>
+
+          {/* Logo Upload Section */}
+          <div className="space-y-2">
+            <Label>Institution Logo (Optional)</Label>
+            <div className="flex items-center gap-4">
+              {logoPreview ? (
+                <div className="relative">
+                  <img
+                    src={logoPreview}
+                    alt="Institution logo"
+                    className="w-20 h-20 object-contain border rounded-lg"
+                  />
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    onClick={removeLogo}
+                    className="absolute -top-2 -right-2 w-6 h-6 p-0 rounded-full"
+                  >
+                    <X className="w-3 h-3" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="w-20 h-20 border-2 border-dashed border-muted-foreground/25 rounded-lg flex items-center justify-center">
+                  <Image className="w-8 h-8 text-muted-foreground/50" />
+                </div>
+              )}
+              
+              <div className="flex-1">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleLogoUpload}
+                  className="hidden"
+                  id="logo-upload"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full"
+                >
+                  <Upload className="w-4 h-4 mr-2" />
+                  {logoPreview ? "Change Logo" : "Upload Logo"}
+                </Button>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Recommended: Square image, max 5MB (PNG, JPG, GIF)
+                </p>
+              </div>
             </div>
           </div>
 
