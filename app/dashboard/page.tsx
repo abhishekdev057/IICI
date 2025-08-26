@@ -122,7 +122,8 @@ export default function DashboardPage() {
     }
   }, [application, scores, calculateScores])
 
-  if (isLoading) {
+  // Don't show loading screen for submitted applications - show dashboard immediately
+  if (isLoading && !application?.status) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">

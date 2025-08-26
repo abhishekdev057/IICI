@@ -161,6 +161,9 @@ export function Navigation({
       case "institution":
         return (
           <>
+            <Button variant="ghost" size="sm">
+              <Bell className="w-4 h-4" />
+            </Button>
             <Button variant="ghost" size="sm" asChild>
               <Link href="/">
                 <Home className="w-4 h-4" />
@@ -286,6 +289,10 @@ export function Navigation({
       case "institution":
         return (
           <div className="flex flex-col space-y-4 p-4">
+            <Button variant="ghost" className="justify-start">
+              <Bell className="w-4 h-4 mr-2" />
+              Notifications
+            </Button>
             <Button variant="ghost" className="justify-start" asChild>
               <Link href="/">
                 <Home className="w-4 h-4 mr-2" />
