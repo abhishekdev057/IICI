@@ -49,6 +49,9 @@
     "@radix-ui/react-tooltip": "latest",
     "@react-pdf/renderer": "^4.3.0",
     "@tailwindcss/postcss": "^4.1.9",
+    "@types/node": "^22",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
     "autoprefixer": "^10.4.20",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -82,10 +85,5 @@
     "typescript": "^5",
     "vaul": "latest",
     "zod": "3.25.67"
-  },
-  "devDependencies": {
-    "@types/node": "^22",
-    "@types/react": "^19",
-    "@types/react-dom": "^19"
   }
 }
