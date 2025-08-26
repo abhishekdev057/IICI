@@ -8,7 +8,9 @@ import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Info, Upload, File, Link, CheckCircle, AlertCircle } from "lucide-react"
+import { Progress } from "@/components/ui/progress"
+import { Info, Upload, File, Link, CheckCircle, AlertCircle, X } from "lucide-react"
+import { useToast } from "@/components/ui/use-toast"
 
 interface Indicator {
   id: string
@@ -46,6 +48,10 @@ export function IndicatorInput({
     fileSize: null,
     fileType: null
   })
+  const [isUploading, setIsUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(0)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const { toast } = useToast()
 
   // Update local value when prop changes
   useEffect(() => {
@@ -81,27 +87,85 @@ export function IndicatorInput({
     onEvidenceChange(updatedEvidence)
   }, [localEvidence, onEvidenceChange])
 
-  // Handle file upload
+  // Handle file upload with progress tracking
   const handleFileUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
-    if (file) {
-      if (file.size > 10 * 1024 * 1024) { // 10MB limit
-        alert("File must be smaller than 10MB")
-        return
-      }
-      
-      const reader = new FileReader()
-      reader.onload = (e) => {
-        const result = e.target?.result as string
-        handleEvidenceChange('url', result)
-        handleEvidenceChange('fileName', file.name)
-        handleEvidenceChange('fileSize', file.size)
-        handleEvidenceChange('fileType', file.type)
-        handleEvidenceChange('type', 'file')
-      }
-      reader.readAsDataURL(file)
+    if (!file) return
+
+    // Reset states
+    setUploadError(null)
+    setUploadProgress(0)
+    setIsUploading(true)
+
+    // Validate file size
+    if (file.size > 10 * 1024 * 1024) { // 10MB limit
+      setUploadError("File must be smaller than 10MB")
+      setIsUploading(false)
+      toast({
+        title: "File Too Large",
+        description: "Please select a file smaller than 10MB",
+        variant: "destructive",
+      })
+      return
     }
-  }, [handleEvidenceChange])
+
+    // Validate file type
+    const allowedExtensions = ['.pdf', '.doc', '.docx', '.jpg', '.jpeg', '.png', '.xls', '.xlsx', '.ppt', '.pptx', '.txt', '.csv', '.zip']
+    const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase()
+    
+    if (!allowedExtensions.includes(fileExtension)) {
+      setUploadError(`File type not supported. Allowed: ${allowedExtensions.join(', ')}`)
+      setIsUploading(false)
+      toast({
+        title: "Unsupported File Type",
+        description: `Please select a file with one of these extensions: ${allowedExtensions.join(', ')}`,
+        variant: "destructive",
+      })
+      return
+    }
+
+    const reader = new FileReader()
+    
+    reader.onprogress = (e) => {
+      if (e.lengthComputable) {
+        const progress = Math.round((e.loaded / e.total) * 100)
+        setUploadProgress(progress)
+      }
+    }
+
+    reader.onload = (e) => {
+      const result = e.target?.result as string
+      handleEvidenceChange('url', result)
+      handleEvidenceChange('fileName', file.name)
+      handleEvidenceChange('fileSize', file.size)
+      handleEvidenceChange('fileType', file.type)
+      handleEvidenceChange('type', 'file')
+      
+      setIsUploading(false)
+      setUploadProgress(100)
+      
+      toast({
+        title: "File Uploaded Successfully!",
+        description: `${file.name} has been uploaded as evidence.`,
+        variant: "default",
+      })
+
+      // Reset progress after a delay
+      setTimeout(() => setUploadProgress(0), 2000)
+    }
+
+    reader.onerror = () => {
+      setUploadError("Failed to read file. Please try again.")
+      setIsUploading(false)
+      toast({
+        title: "Upload Failed",
+        description: "Failed to read file. Please try again.",
+        variant: "destructive",
+      })
+    }
+
+    reader.readAsDataURL(file)
+  }, [handleEvidenceChange, toast])
 
   // Get input type based on measurement unit
   const getInputType = () => {
@@ -343,14 +407,67 @@ export function IndicatorInput({
                 type="file"
                 onChange={handleFileUpload}
                 className="hidden"
-                accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.xls,.xlsx"
+                accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip"
+                disabled={isUploading}
               />
-              {localEvidence.fileName && (
-                <div className="flex items-center gap-2 p-2 bg-muted rounded">
-                  <File className="h-4 w-4" />
-                  <span className="text-sm">{localEvidence.fileName}</span>
+              
+              {/* Upload Progress */}
+              {isUploading && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span>Uploading file...</span>
+                    <span>{uploadProgress}%</span>
+                  </div>
+                  <Progress value={uploadProgress} className="h-2" />
                 </div>
               )}
+
+              {/* Upload Error */}
+              {uploadError && (
+                <div className="flex items-center gap-2 p-2 bg-destructive/10 border border-destructive/20 rounded text-destructive text-sm">
+                  <AlertCircle className="h-4 w-4" />
+                  <span>{uploadError}</span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setUploadError(null)}
+                    className="h-auto p-1 ml-auto"
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+              )}
+
+              {/* File Display */}
+              {localEvidence.fileName && !isUploading && (
+                <div className="flex items-center gap-2 p-2 bg-muted rounded">
+                  <File className="h-4 w-4" />
+                  <span className="text-sm flex-1">{localEvidence.fileName}</span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      handleEvidenceChange('fileName', '')
+                      handleEvidenceChange('url', '')
+                      handleEvidenceChange('fileSize', null)
+                      handleEvidenceChange('fileType', null)
+                      handleEvidenceChange('type', 'text')
+                      setUploadError(null)
+                    }}
+                    className="h-auto p-1"
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+              )}
+
+              {/* File Type Info */}
+              <div className="text-xs text-muted-foreground">
+                Supported formats: PDF, DOC, DOCX, JPG, PNG, XLS, XLSX, PPT, PPTX, TXT, CSV, ZIP (max 10MB)
+              </div>
+
               <Textarea
                 value={localEvidence.description || ""}
                 onChange={(e) => handleEvidenceChange('description', e.target.value)}
