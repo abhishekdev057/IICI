@@ -126,8 +126,10 @@ export async function PUT(
 
     // Save individual indicator responses and evidence if provided
     if (indicatorResponses && Array.isArray(indicatorResponses)) {
+      console.log('Total indicator responses to process:', indicatorResponses.length);
       for (const response of indicatorResponses) {
         const { indicatorId, pillarId, rawValue, normalizedScore, measurementUnit, hasEvidence, evidence } = response
+        console.log(`Processing indicator ${indicatorId} (pillar ${pillarId}):`, { hasEvidence, evidence });
         
         // Save or update indicator response
         const indicatorResponse = await prisma.indicatorResponse.upsert({

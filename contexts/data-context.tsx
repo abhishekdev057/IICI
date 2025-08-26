@@ -374,8 +374,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
       }> = [];
       
       if (state.currentApplication.pillarData) {
+        console.log('Pillar data structure:', state.currentApplication.pillarData);
         Object.entries(state.currentApplication.pillarData).forEach(([pillarKey, pillarData]) => {
           const pillarId = parseInt(pillarKey.replace('pillar_', ''));
+          console.log(`Processing pillar ${pillarId}:`, pillarData);
           if (pillarData && typeof pillarData === 'object' && (pillarData as any).indicators) {
             Object.entries((pillarData as any).indicators).forEach(([indicatorId, value]) => {
               if (value !== undefined && value !== null && value !== "") {
@@ -394,8 +396,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
                 }
 
                 // Check if evidence exists for this indicator
+                // First check pillar-specific evidence (from pillar form)
+                const pillarEvidence = (pillarData as any).evidence?.[indicatorId];
+                // Then check global evidence (from updateEvidence function)
                 const evidenceKey = `${pillarId}_${indicatorId}`;
-                const evidenceData = state.currentApplication?.evidence?.[evidenceKey];
+                const globalEvidence = state.currentApplication?.evidence?.[evidenceKey];
+                
+                // Use pillar evidence if available, otherwise use global evidence
+                const evidenceData = pillarEvidence || globalEvidence;
                 const hasEvidence = !!(evidenceData && (evidenceData.description || evidenceData.url || evidenceData.fileName));
 
                 if (hasEvidence) {
