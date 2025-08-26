@@ -354,11 +354,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    let timeoutId: NodeJS.Timeout | undefined;
+    
     try {
       updateState({ isSaving: true, error: null });
 
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
 
       // Prepare indicator responses for database
       const indicatorResponses: Array<{
@@ -452,12 +454,43 @@ export function DataProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error("Save error:", error);
       
-      // Retry on network errors
-      if ((error instanceof Error && (error.name === 'AbortError' || error.message.includes('fetch'))) && retryCount < 2) {
-        setTimeout(() => saveApplication(retryCount + 1), 1000 * (retryCount + 1));
-        return;
+      // Clear timeout to prevent memory leaks
+      if (timeoutId) {
+        clearTimeout(timeoutId);
       }
       
+      // Handle different types of errors
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          // Request was aborted (timeout or manual abort)
+          if (retryCount < 2) {
+            console.log(`Save aborted, retrying... (attempt ${retryCount + 1})`);
+            setTimeout(() => saveApplication(retryCount + 1), 1000 * (retryCount + 1));
+            return;
+          } else {
+            updateState({ 
+              error: "Save timed out. Please check your connection and try again.",
+              isSaving: false 
+            });
+            
+            toast({
+              title: "Save Timed Out",
+              description: "The save operation took too long. Please check your connection and try again.",
+              variant: "destructive",
+            });
+            return;
+          }
+        } else if (error.message.includes('fetch') || error.message.includes('network')) {
+          // Network-related errors
+          if (retryCount < 2) {
+            console.log(`Network error, retrying... (attempt ${retryCount + 1})`);
+            setTimeout(() => saveApplication(retryCount + 1), 1000 * (retryCount + 1));
+            return;
+          }
+        }
+      }
+      
+      // Generic error handling
       updateState({ 
         error: "Failed to save. Please try again.",
         isSaving: false 
