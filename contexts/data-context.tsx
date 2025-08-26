@@ -13,6 +13,27 @@ import { useSession } from "next-auth/react";
 import { useToast } from "@/components/ui/use-toast";
 import { ScoringEngine } from "@/lib/scoring-engine";
 
+// Helper function to reconstruct evidence data from database format
+const reconstructEvidenceData = (indicators: any[]): any => {
+  const evidenceData: any = {};
+  
+  indicators.forEach((indicator) => {
+    if (indicator.evidence && indicator.evidence.length > 0) {
+      const evidence = indicator.evidence[0]; // Take the first evidence record
+      evidenceData[indicator.indicatorId] = {
+        type: evidence.type === 'FILE' ? 'file' : evidence.type === 'LINK' ? 'link' : 'text',
+        description: evidence.description || '',
+        url: evidence.url || '',
+        fileName: evidence.fileName || '',
+        fileSize: evidence.fileSize || null,
+        fileType: evidence.fileType || null
+      };
+    }
+  });
+  
+  return evidenceData;
+};
+
 // Helper functions for indicator data
 const getIndicatorMeasurementUnit = (indicatorId: string): string => {
   const definitions = {
@@ -199,12 +220,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
             contactEmail: "",
           },
           pillarData: dashboardData.pillarData || {},
-          evidence: dashboardData.indicators.reduce((acc: any, indicator: any) => {
-            if (indicator.evidence && indicator.evidence.length > 0) {
-              acc[`${indicator.pillarId}_${indicator.id}`] = indicator.evidence;
-            }
-            return acc;
-          }, {}),
+          evidence: reconstructEvidenceData(dashboardData.indicators),
           scores: dashboardData.scores,
           status: dashboardData.application.status?.toLowerCase() || "draft",
           submittedAt: dashboardData.application.submittedAt,
@@ -257,7 +273,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
               contactEmail: "",
             },
             pillarData: latest.pillarData || {},
-            evidence: latest.evidence || {},
+            evidence: reconstructEvidenceData(latest.indicatorResponses || []),
             scores: latest.scoreAudits?.[0]?.scoreData || null,
             status: latest.status?.toLowerCase() || "draft",
             submittedAt: latest.submittedAt,
@@ -352,6 +368,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         normalizedScore: number;
         measurementUnit: string;
         hasEvidence: boolean;
+        evidence?: any;
       }> = [];
       
       if (state.currentApplication.pillarData) {
@@ -374,13 +391,18 @@ export function DataProvider({ children }: { children: ReactNode }) {
                   normalizedScore = Math.min(((value as number) / 200) * 100, 100);
                 }
 
+                // Check if evidence exists for this indicator
+                const evidenceData = (pillarData as any).evidence?.[indicatorId];
+                const hasEvidence = !!(evidenceData && (evidenceData.description || evidenceData.url || evidenceData.fileName));
+
                 indicatorResponses.push({
                   indicatorId,
                   pillarId,
                   rawValue: value,
                   normalizedScore,
                   measurementUnit,
-                  hasEvidence: !!(pillarData as any).evidence && !!(pillarData as any).evidence[indicatorId]
+                  hasEvidence: hasEvidence,
+                  evidence: evidenceData // Include evidence data
                 });
               }
             });

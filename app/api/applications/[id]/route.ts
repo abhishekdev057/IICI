@@ -124,12 +124,13 @@ export async function PUT(
       })
     }
 
-    // Save individual indicator responses if provided
+    // Save individual indicator responses and evidence if provided
     if (indicatorResponses && Array.isArray(indicatorResponses)) {
       for (const response of indicatorResponses) {
-        const { indicatorId, pillarId, rawValue, normalizedScore, measurementUnit, hasEvidence } = response
+        const { indicatorId, pillarId, rawValue, normalizedScore, measurementUnit, hasEvidence, evidence } = response
         
-        await prisma.indicatorResponse.upsert({
+        // Save or update indicator response
+        const indicatorResponse = await prisma.indicatorResponse.upsert({
           where: {
             applicationId_indicatorId: {
               applicationId: id,
@@ -151,6 +152,30 @@ export async function PUT(
             hasEvidence: hasEvidence || false
           }
         })
+
+        // Save evidence if provided
+        if (evidence && (evidence.description || evidence.url || evidence.fileName)) {
+          // Delete existing evidence for this indicator response
+          await prisma.evidence.deleteMany({
+            where: {
+              indicatorResponseId: indicatorResponse.id
+            }
+          })
+
+          // Create new evidence record
+          await prisma.evidence.create({
+            data: {
+              indicatorResponseId: indicatorResponse.id,
+              applicationId: id,
+              type: evidence.type === 'file' ? 'FILE' : 'LINK',
+              fileName: evidence.fileName || null,
+              fileSize: evidence.fileSize || null,
+              fileType: evidence.fileType || null,
+              url: evidence.url || '',
+              description: evidence.description || null
+            }
+          })
+        }
       }
     }
 

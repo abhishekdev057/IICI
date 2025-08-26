@@ -42,7 +42,9 @@ export function IndicatorInput({
     type: "text",
     description: "",
     url: "",
-    fileName: ""
+    fileName: "",
+    fileSize: null,
+    fileType: null
   })
 
   // Update local value when prop changes
@@ -93,6 +95,8 @@ export function IndicatorInput({
         const result = e.target?.result as string
         handleEvidenceChange('url', result)
         handleEvidenceChange('fileName', file.name)
+        handleEvidenceChange('fileSize', file.size)
+        handleEvidenceChange('fileType', file.type)
         handleEvidenceChange('type', 'file')
       }
       reader.readAsDataURL(file)
