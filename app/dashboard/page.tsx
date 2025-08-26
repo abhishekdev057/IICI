@@ -278,7 +278,7 @@ export default function DashboardPage() {
       : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
   }
 
-  const historicalData = [
+  const historicalData = dashboardData.historicalData || [
     {
       year: new Date().getFullYear(),
       overallScore: overallScore,

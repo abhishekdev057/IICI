@@ -41,8 +41,7 @@ export async function GET(request: NextRequest) {
           }
         },
         scoreAudits: {
-          orderBy: { calculatedAt: 'desc' },
-          take: 1
+          orderBy: { calculatedAt: 'desc' }
         }
       }
     })
@@ -177,9 +176,36 @@ export async function GET(request: NextRequest) {
       recommendations: generateRecommendations(pillarData, overallScore)
     }
 
+    // Process historical data from score audits
+    const historicalData = application.scoreAudits.map(audit => {
+      const scoreData = audit.scoreData as any
+      const pillarScores = scoreData?.pillarScores || [0, 0, 0, 0, 0, 0]
+      const overallScore = scoreData?.overallScore || 0
+      
+      // Determine certification level based on score
+      let certificationLevel = "NOT_CERTIFIED"
+      if (overallScore >= 80) {
+        certificationLevel = "GOLD"
+      } else if (overallScore >= 60) {
+        certificationLevel = "CERTIFIED"
+      }
+
+      return {
+        year: new Date(audit.calculatedAt).getFullYear(),
+        overallScore: overallScore,
+        certificationLevel: certificationLevel,
+        pillarScores: pillarScores,
+        submittedDate: audit.calculatedAt,
+        auditId: audit.id
+      }
+    })
+
     return NextResponse.json({
       success: true,
-      data: dashboardData
+      data: {
+        ...dashboardData,
+        historicalData: historicalData
+      }
     })
 
   } catch (error) {
