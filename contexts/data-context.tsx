@@ -176,6 +176,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const loadApplication = useCallback(async () => {
     if (!session?.user || isLoadingRef) return;
 
+    console.log("🔄 Loading application data for user:", session.user.email);
     // Prevent duplicate requests
     setIsLoadingRef(true);
 
@@ -306,9 +307,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
         throw new Error("Failed to load application");
       }
     } catch (error) {
-      console.error("Load error:", error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      console.error("❌ Load error:", error);
+      console.error("❌ Error details:", {
+        message: errorMessage,
+        stack: error instanceof Error ? error.stack : 'No stack trace',
+        user: session?.user?.email
+      });
       updateState({ 
-        error: "Failed to load application. Please refresh the page.",
+        error: `Failed to load application: ${errorMessage}. Please refresh the page.`,
         isLoading: false 
       });
     } finally {

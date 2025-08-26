@@ -4,6 +4,7 @@ import { useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { Building2, Calendar, Award, AlertCircle } from "lucide-react"
 import { useData } from "@/contexts/data-context"
 import { Navigation } from "@/components/layout/navigation"
@@ -115,6 +116,54 @@ export default function DashboardPage() {
   const institutionData = application?.institutionData
   const scores = application?.scores
   const isLoading = state.isLoading
+  const error = state.error
+
+  // Add error boundary for dashboard
+  if (error) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Navigation variant="dashboard" title="IIICI Dashboard" />
+        <div className="flex items-center justify-center min-h-[80vh]">
+          <Card className="max-w-md">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-destructive">
+                <AlertCircle className="h-5 w-5" />
+                Dashboard Error
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-muted-foreground mb-4">
+                {error}
+              </p>
+              <div className="flex gap-2">
+                <Button 
+                  onClick={() => window.location.reload()} 
+                  variant="outline"
+                >
+                  Refresh Page
+                </Button>
+                <Button asChild>
+                  <a href="/application">Go to Application</a>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+        <Footer variant="minimal" />
+      </div>
+    )
+  }
+  const error = state.error
+
+  // Debug logging
+  console.log("Dashboard Debug:", {
+    application: !!application,
+    applicationStatus: application?.status,
+    institutionData: !!institutionData,
+    scores: !!scores,
+    isLoading,
+    error
+  })
 
   useEffect(() => {
     if (application && !scores && application.pillarData) {
