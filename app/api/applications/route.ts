@@ -86,6 +86,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid session - no user ID or email' }, { status: 400 })
     }
 
+    // Ensure user exists in database
+    const userExists = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true }
+    })
+
+    if (!userExists) {
+      console.error('❌ User not found in database:', userId)
+      return NextResponse.json({ error: 'User not found in database' }, { status: 404 })
+    }
+
     // Check if user already has an application
     const existingApp = await prisma.application.findFirst({
       where: { userId: userId },
@@ -100,16 +111,32 @@ export async function POST(request: NextRequest) {
     }
 
     // Create institution data with minimal requirements
-    const institution = await prisma.institutionData.create({
-      data: {
-        userId: userId,
-        name: "",
-        industry: "",
-        organizationSize: "",
-        country: "",
-        contactEmail: session.user.email || "",
+    let institution
+    try {
+      institution = await prisma.institutionData.create({
+        data: {
+          userId: userId,
+          name: "",
+          industry: "",
+          organizationSize: "",
+          country: "",
+          contactEmail: session.user.email || "",
+        }
+      })
+    } catch (institutionError) {
+      console.error('❌ Error creating institution data:', institutionError)
+      
+      // Check if institution already exists
+      const existingInstitution = await prisma.institutionData.findUnique({
+        where: { userId: userId }
+      })
+      
+      if (existingInstitution) {
+        institution = existingInstitution
+      } else {
+        throw institutionError
       }
-    })
+    }
 
     // Create application
     const application = await prisma.application.create({
@@ -136,6 +163,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Application already exists for this user' },
         { status: 409 }
+      )
+    }
+    
+    if (error.code === 'P2003') {
+      return NextResponse.json(
+        { error: 'Foreign key constraint violation - user may not exist' },
+        { status: 400 }
       )
     }
     
