@@ -38,6 +38,7 @@ model User {
   adminReviews   AdminReview[]
   scoreAudits    ScoreAudit[]
   certifications Certification[]
+  notifications  Notification[]
 
   // NextAuth integration
   accounts Account[]
@@ -258,6 +259,23 @@ model FeaturePermission {
   @@map("feature_permissions")
 }
 
+// User notifications
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  message   String
+  type      NotificationType
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  readAt    DateTime?
+
+  // Relationships
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
 // Enums
 enum UserRole {
   USER
@@ -276,6 +294,15 @@ enum ApplicationStatus {
 enum EvidenceType {
   FILE
   LINK
+}
+
+enum NotificationType {
+  INFO
+  SUCCESS
+  WARNING
+  ERROR
+  ASSESSMENT
+  CERTIFICATION
 }
 
 enum CertificationLevel {

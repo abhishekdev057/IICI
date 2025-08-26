@@ -9,6 +9,7 @@ import Link from "next/link";
 import { useData } from "@/contexts/data-context";
 import { useSession, signOut } from "next-auth/react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { NotificationDropdown } from "./notification-dropdown";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -161,9 +162,7 @@ export function Navigation({
       case "institution":
         return (
           <>
-            <Button variant="ghost" size="sm">
-              <Bell className="w-4 h-4" />
-            </Button>
+            <NotificationDropdown />
             <Button variant="ghost" size="sm" asChild>
               <Link href="/">
                 <Home className="w-4 h-4" />
@@ -289,10 +288,10 @@ export function Navigation({
       case "institution":
         return (
           <div className="flex flex-col space-y-4 p-4">
-            <Button variant="ghost" className="justify-start">
-              <Bell className="w-4 h-4 mr-2" />
-              Notifications
-            </Button>
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium">Notifications</span>
+              <NotificationDropdown />
+            </div>
             <Button variant="ghost" className="justify-start" asChild>
               <Link href="/">
                 <Home className="w-4 h-4 mr-2" />

@@ -3,8 +3,10 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { TrendingUp, TrendingDown, Minus, Calendar, RotateCcw } from "lucide-react"
+import { TrendingUp, TrendingDown, Minus, Calendar, RotateCcw, AlertCircle } from "lucide-react"
 import Link from "next/link"
+import { useState } from "react"
+import { useToast } from "@/hooks/use-toast"
 
 interface HistoricalEntry {
   year: number
@@ -20,9 +22,41 @@ interface HistoricalTrackingProps {
 }
 
 export function HistoricalTracking({ history, currentScore }: HistoricalTrackingProps) {
+  const [showReapplyInfo, setShowReapplyInfo] = useState(false)
+  const { toast } = useToast()
+  
   const sortedHistory = [...history].sort((a, b) => b.year - a.year)
   const previousScore = sortedHistory[1]?.overallScore || 0
   const scoreChange = currentScore - previousScore
+
+  const currentYear = new Date().getFullYear()
+  const lastAssessmentYear = sortedHistory[0]?.year || currentYear
+  const nextAssessmentYear = lastAssessmentYear + 1
+  
+  const canReapply = currentYear >= nextAssessmentYear
+  
+  const getTimeUntilNextAssessment = () => {
+    if (canReapply) return null
+    
+    const lastAssessmentDate = new Date(sortedHistory[0]?.submittedDate || Date.now())
+    const nextAssessmentDate = new Date(lastAssessmentDate.getFullYear() + 1, lastAssessmentDate.getMonth(), lastAssessmentDate.getDate())
+    const now = new Date()
+    
+    const diffTime = nextAssessmentDate.getTime() - now.getTime()
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    
+    if (diffDays <= 0) return null
+    
+    const months = Math.floor(diffDays / 30)
+    const days = diffDays % 30
+    
+    if (months > 0) {
+      return `${months} month${months > 1 ? 's' : ''} and ${days} day${days > 1 ? 's' : ''}`
+    }
+    return `${days} day${days > 1 ? 's' : ''}`
+  }
+  
+  const timeUntilNext = getTimeUntilNextAssessment()
 
   // If no history, show empty state
   if (history.length === 0) {
@@ -61,9 +95,9 @@ export function HistoricalTracking({ history, currentScore }: HistoricalTracking
   }
 
   const getTrendColor = (change: number) => {
-    if (change > 0) return "text-secondary"
-    if (change < 0) return "text-destructive"
-    return "text-muted-foreground"
+    if (change > 0) return "text-green-600"
+    if (change < 0) return "text-red-600"
+    return "text-gray-600"
   }
 
   const getCertificationBadge = (level: string) => {
@@ -126,11 +160,22 @@ export function HistoricalTracking({ history, currentScore }: HistoricalTracking
         <CardHeader>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <CardTitle>Assessment History</CardTitle>
-            <Button variant="outline" size="sm" className="w-full sm:w-auto">
-              <RotateCcw className="w-4 h-4 mr-2" />
-              <span className="hidden sm:inline">Reapply for {new Date().getFullYear() + 1}</span>
-              <span className="sm:hidden">Reapply</span>
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+              {canReapply ? (
+                <Button variant="outline" size="sm" asChild className="w-full sm:w-auto">
+                  <Link href="/application">
+                    <RotateCcw className="w-4 h-4 mr-2" />
+                    <span className="hidden sm:inline">Reapply for {nextAssessmentYear}</span>
+                    <span className="sm:hidden">Reapply</span>
+                  </Link>
+                </Button>
+              ) : (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <AlertCircle className="w-4 h-4" />
+                  <span>Next assessment available in {timeUntilNext}</span>
+                </div>
+              )}
+            </div>
           </div>
         </CardHeader>
         <CardContent>
