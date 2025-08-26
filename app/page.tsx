@@ -7,6 +7,7 @@ import { Footer } from "@/components/layout/footer"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import Link from "next/link"
 import { 
   Award, 
   Users, 
@@ -194,9 +195,11 @@ export default function HomePage() {
                   Explore real-world examples of organizations that have achieved innovation excellence 
                   through IIICI certification.
                 </p>
-                <Button variant="ghost" className="p-0 h-auto">
-                  Read Case Studies
-                  <ArrowRight className="w-4 h-4 ml-2" />
+                <Button variant="ghost" className="p-0 h-auto" asChild>
+                  <Link href="/case-studies">
+                    Read Case Studies
+                    <ArrowRight className="w-4 h-4 ml-2" />
+                  </Link>
                 </Button>
               </CardContent>
             </Card>
@@ -213,9 +216,11 @@ export default function HomePage() {
                   Access the latest research, trends, and best practices in organizational innovation 
                   and capability building.
                 </p>
-                <Button variant="ghost" className="p-0 h-auto">
-                  Explore Insights
-                  <ArrowRight className="w-4 h-4 ml-2" />
+                <Button variant="ghost" className="p-0 h-auto" asChild>
+                  <Link href="/insights">
+                    Explore Insights
+                    <ArrowRight className="w-4 h-4 ml-2" />
+                  </Link>
                 </Button>
               </CardContent>
             </Card>
@@ -232,9 +237,11 @@ export default function HomePage() {
                   Connect with innovation experts, certified organizations, and thought leaders 
                   in the IIICI community.
                 </p>
-                <Button variant="ghost" className="p-0 h-auto">
-                  Join Network
-                  <ArrowRight className="w-4 h-4 ml-2" />
+                <Button variant="ghost" className="p-0 h-auto" asChild>
+                  <Link href="/network">
+                    Join Network
+                    <ArrowRight className="w-4 h-4 ml-2" />
+                  </Link>
                 </Button>
               </CardContent>
             </Card>

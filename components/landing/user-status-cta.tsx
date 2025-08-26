@@ -14,9 +14,11 @@ export function UserStatusCTA() {
   if (!session?.user) {
     return (
       <div className="text-center">
-        <Button size="lg" className="bg-primary hover:bg-primary/90">
-          Start Your Certification
-          <ArrowRight className="w-4 h-4 ml-2" />
+        <Button size="lg" asChild className="bg-primary hover:bg-primary/90">
+          <Link href="/auth">
+            Start Your Certification
+            <ArrowRight className="w-4 h-4 ml-2" />
+          </Link>
         </Button>
       </div>
     )
