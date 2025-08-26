@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { TrendingUp, Award, Calendar, Download } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import Link from "next/link"
 
 interface OverviewChartsProps {
   overallScore: number
@@ -112,10 +113,10 @@ export function OverviewCharts({
       <Card className="relative overflow-hidden">
         <div className={`absolute inset-0 ${getScoreBackground(overallScore)}`} />
         <CardHeader className="relative">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div>
-              <CardTitle className="text-2xl font-bold">Innovation Maturity Score</CardTitle>
-              <div className="flex items-center gap-2 mt-2">
+              <CardTitle className="text-xl md:text-2xl font-bold">Innovation Maturity Score</CardTitle>
+              <div className="flex flex-wrap items-center gap-2 mt-2">
                 {getCertificationBadge()}
                 {issuedDate && (
                   <Badge variant="outline" className="text-xs">
@@ -125,11 +126,13 @@ export function OverviewCharts({
                 )}
               </div>
             </div>
-            <div className="flex items-center gap-4">
-              <CircularProgress score={overallScore} size={140} />
-              <Button size="sm" variant="outline">
-                <Download className="w-4 h-4 mr-2" />
-                Download Report
+            <div className="flex flex-col sm:flex-row items-center gap-4">
+              <CircularProgress score={overallScore} size={120} />
+              <Button size="sm" variant="outline" asChild className="w-full sm:w-auto">
+                <Link href="#reports">
+                  <Download className="w-4 h-4 mr-2" />
+                  Download Report
+                </Link>
               </Button>
             </div>
           </div>
@@ -144,7 +147,7 @@ export function OverviewCharts({
       </Card>
 
       {/* Pillar Scores Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {pillarScores.map((score, index) => {
           const safeScore = isNaN(score) || !isFinite(score) ? 0 : Math.max(0, Math.min(100, score))
           const hasData = safeScore > 0
@@ -159,9 +162,9 @@ export function OverviewCharts({
                 <div className="text-xs text-muted-foreground">{pillarNames[index]}</div>
               </CardHeader>
               <CardContent>
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                   <CircularProgress score={safeScore} size={80} />
-                  <div className="text-right">
+                  <div className="text-center sm:text-right">
                     <div className={`text-xl font-bold ${getScoreColor(safeScore)}`}>
                       {Math.round(safeScore)}%
                     </div>

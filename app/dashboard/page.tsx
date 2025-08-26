@@ -208,27 +208,29 @@ export default function DashboardPage() {
   const overallScore = scores?.overallScore ?? 0
   
   // Calculate certification level based on overall score
-        let certificationLevel = "NOT_CERTIFIED"
-      if (overallScore >= 80) {
-        certificationLevel = "GOLD"
-      } else if (overallScore >= 60) {
-        certificationLevel = "CERTIFIED"
-      }
+  let certificationLevel = "NOT_CERTIFIED"
+  if (overallScore >= 80) {
+    certificationLevel = "GOLD"
+  } else if (overallScore >= 60) {
+    certificationLevel = "CERTIFIED"
+  }
 
-      // Convert to display format for UI
-      const getDisplayCertificationLevel = (level: string) => {
-        switch (level) {
-          case "GOLD": return "Gold"
-          case "CERTIFIED": return "Certified"
-          case "NOT_CERTIFIED": 
-          default: return "Not Certified"
-        }
-      }
+  // Convert to display format for UI
+  const getDisplayCertificationLevel = (level: string) => {
+    switch (level) {
+      case "GOLD": return "Gold"
+      case "CERTIFIED": return "Certified"
+      case "NOT_CERTIFIED": 
+      default: return "Not Certified"
+    }
+  }
+
+  const displayCertificationLevel = getDisplayCertificationLevel(certificationLevel)
 
   // Build comprehensive dashboard data from database
   const dashboardData = {
     overallScore,
-    certificationLevel: getDisplayCertificationLevel(certificationLevel),
+    certificationLevel: displayCertificationLevel,
     pillars: Array.from({ length: 6 }, (_, i) => {
       const pillarId = i + 1
       const pillarKey = `pillar_${pillarId}`
@@ -300,7 +302,7 @@ export default function DashboardPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
                 <div className="flex items-center gap-3">
                   {institutionData.logo ? (
                     <img
@@ -340,21 +342,21 @@ export default function DashboardPage() {
                     <div className="text-sm font-medium">Certification Level</div>
                     <Badge
                       className={
-                        certificationLevel === "Gold"
-                          ? "bg-yellow-500"
-                          : certificationLevel === "Certified"
-                            ? "bg-green-500"
-                            : "bg-gray-500"
+                        displayCertificationLevel === "Gold"
+                          ? "bg-yellow-500 text-white"
+                          : displayCertificationLevel === "Certified"
+                            ? "bg-green-500 text-white"
+                            : "bg-gray-500 text-white"
                       }
                     >
-                      {certificationLevel}
+                      {displayCertificationLevel}
                     </Badge>
                   </div>
                 </div>
               </div>
 
               <div className="mt-4 pt-4 border-t">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-sm">
                   <div>
                     <span className="font-medium">Country: </span>
                     <span className="text-muted-foreground">{institutionData.country}</span>
@@ -382,14 +384,14 @@ export default function DashboardPage() {
           </Card>
         )}
 
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-foreground mb-2 font-[family-name:var(--font-space-grotesk)]">
+        <div className="mb-6 md:mb-8">
+          <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-2 font-[family-name:var(--font-space-grotesk)]">
             IIICI Certification Dashboard
           </h1>
-          <p className="text-muted-foreground">
+          <p className="text-muted-foreground text-sm md:text-base">
             Track your organization's innovation capability assessment and certification status
           </p>
-          <div className="flex items-center gap-2 mt-2">
+          <div className="flex flex-wrap items-center gap-2 mt-2">
             <Badge variant="outline" className="text-xs">
               Last updated: {new Date(application.lastSaved).toLocaleString()}
             </Badge>
@@ -413,18 +415,18 @@ export default function DashboardPage() {
         )}
 
         <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="details">Pillar Details</TabsTrigger>
-            <TabsTrigger value="reports">Reports</TabsTrigger>
-            <TabsTrigger value="history">History</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-2 md:grid-cols-4">
+            <TabsTrigger value="overview" className="text-xs md:text-sm">Overview</TabsTrigger>
+            <TabsTrigger value="details" className="text-xs md:text-sm">Details</TabsTrigger>
+            <TabsTrigger value="reports" className="text-xs md:text-sm">Reports</TabsTrigger>
+            <TabsTrigger value="history" className="text-xs md:text-sm">History</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview">
             <OverviewCharts
               overallScore={overallScore}
               pillarScores={pillarScores}
-              certificationLevel={certificationLevel}
+              certificationLevel={displayCertificationLevel}
               issuedDate={dashboardData.issuedDate}
               expiryDate={dashboardData.expiryDate}
             />
@@ -434,11 +436,11 @@ export default function DashboardPage() {
             <PillarDetails pillars={dashboardData.pillars} recommendations={dashboardData.recommendations} />
           </TabsContent>
 
-          <TabsContent value="reports">
+          <TabsContent value="reports" id="reports">
             <ExportReports
               overallScore={overallScore}
               pillarScores={pillarScores}
-              certificationLevel={certificationLevel}
+              certificationLevel={displayCertificationLevel}
               organizationName={institutionData?.name || "Your Organization"}
               issuedDate={dashboardData.issuedDate}
             />

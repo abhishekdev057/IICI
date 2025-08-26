@@ -482,7 +482,7 @@ export function ExportReports({
                 <FileText className="w-4 h-4" />
                 PDF Reports
               </h4>
-              <div className="flex flex-wrap gap-3">
+              <div className="flex flex-col sm:flex-row gap-3">
                 <Button 
                   onClick={() => generatePDFReport("comprehensive")} 
                   disabled={isGenerating} 
@@ -509,7 +509,7 @@ export function ExportReports({
                 <Table className="w-4 h-4" />
                 Data Export
               </h4>
-              <div className="flex flex-wrap gap-3">
+              <div className="flex flex-col sm:flex-row gap-3">
                 <Button 
                   onClick={exportToCSV} 
                   disabled={isExporting} 
@@ -537,12 +537,12 @@ export function ExportReports({
                 <Share2 className="w-4 h-4" />
                 Share Results
               </h4>
-              <div className="flex flex-wrap gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <Button 
                   onClick={() => shareResults("native")} 
                   disabled={isSharing} 
                   variant="outline"
-                  className="flex-1 min-w-[120px]"
+                  className="min-w-[120px]"
                 >
                   <Share2 className="w-4 h-4 mr-2" />
                   {isSharing ? "Sharing..." : "Share"}
@@ -551,7 +551,7 @@ export function ExportReports({
                   onClick={() => shareResults("email")} 
                   disabled={isSharing} 
                   variant="outline"
-                  className="flex-1 min-w-[120px]"
+                  className="min-w-[120px]"
                 >
                   <Mail className="w-4 h-4 mr-2" />
                   Email
@@ -560,7 +560,7 @@ export function ExportReports({
                   onClick={() => shareResults("clipboard")} 
                   disabled={isSharing} 
                   variant="outline"
-                  className="flex-1 min-w-[120px]"
+                  className="min-w-[120px]"
                 >
                   <Copy className="w-4 h-4 mr-2" />
                   Copy Link
@@ -568,7 +568,7 @@ export function ExportReports({
                 <Button 
                   onClick={printReport} 
                   variant="outline"
-                  className="flex-1 min-w-[120px]"
+                  className="min-w-[120px]"
                 >
                   <Printer className="w-4 h-4 mr-2" />
                   Print

@@ -230,17 +230,17 @@ export function FormWizard() {
     <div className="min-h-screen bg-background p-4">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between">
+        <div className="mb-6 md:mb-8">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div>
-              <h1 className="text-3xl font-bold text-foreground mb-2">
+              <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-2">
                 IIICI Certification Application
               </h1>
-              <p className="text-muted-foreground">
+              <p className="text-muted-foreground text-sm md:text-base">
                 Complete institution setup and all 6 pillars to receive your innovation certification
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {/* Save Status */}
               <Badge variant={state.isSaving ? "secondary" : state.lastSaveTime ? "outline" : "destructive"}>
                 {state.isSaving ? (
@@ -294,7 +294,7 @@ export function FormWizard() {
             )}
 
             {/* Step Indicators */}
-            <div className="flex justify-between text-xs text-muted-foreground">
+            <div className="flex justify-between text-xs text-muted-foreground overflow-x-auto">
               {formSteps.map((step, index) => {
                 const Icon = step.icon || (() => <span>{step.id}</span>)
                 const isCompleted = index < currentStep
@@ -328,7 +328,7 @@ export function FormWizard() {
                 );
 
                 return (
-                  <div key={step.id} className="flex flex-col items-center">
+                  <div key={step.id} className="flex flex-col items-center min-w-0 flex-shrink-0">
                     <div
                       className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium mb-1 cursor-pointer transition-colors ${
                         isCompleted
@@ -349,7 +349,7 @@ export function FormWizard() {
                         <Icon className="h-4 w-4" />
                       )}
                     </div>
-                    <span className="text-center max-w-16 text-xs">
+                    <span className="text-center max-w-16 text-xs truncate">
                       {step.id === 0 ? "Setup" : `Pillar ${step.id}`}
                     </span>
                   </div>
@@ -406,12 +406,13 @@ export function FormWizard() {
         </Card>
 
         {/* Navigation */}
-        <div className="flex justify-between mt-6">
-          <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row sm:justify-between gap-4 mt-6">
+          <div className="flex gap-2 order-2 sm:order-1">
             <Button 
               variant="outline" 
               onClick={handlePrevious} 
               disabled={currentStep === 0}
+              className="flex-1 sm:flex-none"
             >
               Previous
             </Button>
@@ -420,7 +421,7 @@ export function FormWizard() {
               variant="outline" 
               onClick={saveApplication}
               disabled={state.isSaving}
-              className="min-w-[120px]"
+              className="min-w-[120px] flex-1 sm:flex-none"
             >
               {state.isSaving ? (
                 <>
@@ -436,14 +437,16 @@ export function FormWizard() {
             </Button>
           </div>
           
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2 order-1 sm:order-2">
             {!canProceed && (
-              <div className="flex items-center gap-2 text-sm text-destructive mr-4">
+              <div className="flex items-center gap-2 text-sm text-destructive mb-2 sm:mb-0 sm:mr-4">
                 <AlertCircle className="h-4 w-4" />
-                {currentStep === 0 
-                  ? "Please complete all required fields to continue"
-                  : "Please complete at least one indicator to continue"
-                }
+                <span className="text-xs sm:text-sm">
+                  {currentStep === 0 
+                    ? "Please complete all required fields to continue"
+                    : "Please complete at least one indicator to continue"
+                  }
+                </span>
               </div>
             )}
             
@@ -451,7 +454,7 @@ export function FormWizard() {
               <Button
                 onClick={handleSubmit}
                 disabled={isSubmitting || !canProceed}
-                className="bg-green-600 hover:bg-green-700"
+                className="bg-green-600 hover:bg-green-700 w-full sm:w-auto"
               >
                 {isSubmitting ? (
                   <>
@@ -466,6 +469,7 @@ export function FormWizard() {
               <Button 
                 onClick={handleNext} 
                 disabled={!canProceed}
+                className="w-full sm:w-auto"
               >
                 Next
               </Button>
