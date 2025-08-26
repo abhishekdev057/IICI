@@ -153,7 +153,6 @@ export default function DashboardPage() {
       </div>
     )
   }
-  const error = state.error
 
   // Debug logging
   console.log("Dashboard Debug:", {

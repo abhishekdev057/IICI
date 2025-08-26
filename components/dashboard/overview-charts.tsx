@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { useState } from "react"
 import jsPDF from "jspdf"
-import { useToast } from "@/hooks/use-toast"
+import { useToast } from "@/components/ui/use-toast"
 
 interface OverviewChartsProps {
   overallScore: number

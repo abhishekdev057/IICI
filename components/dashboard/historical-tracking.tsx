@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { TrendingUp, TrendingDown, Minus, Calendar, RotateCcw, AlertCircle } from "lucide-react"
 import Link from "next/link"
 import { useState } from "react"
-import { useToast } from "@/hooks/use-toast"
+import { useToast } from "@/components/ui/use-toast"
 
 interface HistoricalEntry {
   year: number

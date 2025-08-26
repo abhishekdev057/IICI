@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { useSession } from "next-auth/react";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/components/ui/use-toast";
 import { ScoringEngine } from "@/lib/scoring-engine";
 
 // Helper functions for indicator data
