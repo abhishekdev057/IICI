@@ -583,6 +583,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   // Update pillar data
   const updatePillar = useCallback((pillarId: string, data: any) => {
+    console.log(`updatePillar called with pillarId: ${pillarId}, data:`, data);
     setState(prevState => {
       if (!prevState.currentApplication) return prevState;
       

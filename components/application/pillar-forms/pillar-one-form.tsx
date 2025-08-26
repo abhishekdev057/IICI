@@ -97,6 +97,7 @@ export function PillarOneForm({ onDataChange, onScoreChange, initialData }: Pill
       evidence: evidence,
       stats: stats
     }
+    console.log('Pillar form sending combined data:', combinedData);
     onDataChange(combinedData)
     onScoreChange(stats.averageScore)
   }, [stats.averageScore, stats.completion]) // Only depend on specific numeric values
@@ -111,6 +112,7 @@ export function PillarOneForm({ onDataChange, onScoreChange, initialData }: Pill
 
   // Handle evidence changes
   const handleEvidenceChange = useCallback((indicatorId: string, evidenceData: any) => {
+    console.log(`Evidence changed for indicator ${indicatorId}:`, evidenceData);
     setEvidence((prev: any) => ({
       ...prev,
       [indicatorId]: evidenceData

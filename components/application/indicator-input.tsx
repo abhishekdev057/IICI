@@ -366,7 +366,13 @@ export function IndicatorInput({
               type="button"
               variant={localEvidence.type === "file" ? "default" : "outline"}
               size="sm"
-              onClick={() => document.getElementById(`file-${indicator.id}`)?.click()}
+              onClick={() => {
+                handleEvidenceChange('type', 'file');
+                // Trigger file input click after a short delay to ensure type is set
+                setTimeout(() => {
+                  document.getElementById(`file-${indicator.id}`)?.click();
+                }, 100);
+              }}
               className="flex items-center gap-1"
             >
               <Upload className="h-3 w-3" />

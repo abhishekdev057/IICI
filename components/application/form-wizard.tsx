@@ -205,6 +205,7 @@ export function FormWizard() {
   // Update form data handler
   const handleDataChange = useCallback((pillarData: any) => {
     if (currentStep > 0) {
+      console.log(`Updating pillar ${currentStep} with data:`, pillarData);
       updatePillar(`pillar_${currentStep}`, pillarData)
     }
   }, [currentStep, updatePillar])
