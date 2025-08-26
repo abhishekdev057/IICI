@@ -92,12 +92,7 @@ export function Footer({ variant = "landing" }: FooterProps) {
               >
                 Dashboard
               </Link>
-              <Link
-                href="/institution"
-                className="block text-sm text-muted-foreground hover:text-foreground transition-colors"
-              >
-                Institution Management
-              </Link>
+
 
             </div>
           </div>

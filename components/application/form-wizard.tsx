@@ -7,7 +7,8 @@ import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
 import { CheckCircle, Clock, AlertCircle, Building2, Loader2, Save, Lock } from "lucide-react"
 import { useData } from "@/contexts/data-context"
-import { InstitutionForm } from "@/components/institution/institution-form"
+
+import { InstitutionSetup } from "./institution-setup"
 import { ScorePreview } from "./score-preview"
 import { PillarOneForm } from "./pillar-forms/pillar-one-form"
 import { PillarTwoForm } from "./pillar-forms/pillar-two-form"
@@ -17,7 +18,7 @@ import { PillarFiveForm } from "./pillar-forms/pillar-five-form"
 import { PillarSixForm } from "./pillar-forms/pillar-six-form"
 
 const formSteps = [
-  { id: 0, title: "Institution Setup", component: InstitutionForm, icon: Building2 },
+  { id: 0, title: "Institution Setup", component: InstitutionSetup, icon: Building2 },
   { id: 1, title: "Strategic Foundation & Leadership", component: PillarOneForm },
   { id: 2, title: "Resource Allocation & Infrastructure", component: PillarTwoForm },
   { id: 3, title: "Innovation Processes & Culture", component: PillarThreeForm },
@@ -394,7 +395,7 @@ export function FormWizard() {
           </CardHeader>
           <CardContent>
             {currentStep === 0 ? (
-              <InstitutionForm />
+              <InstitutionSetup />
             ) : (
               <CurrentStepComponent
                 onDataChange={handleDataChange}

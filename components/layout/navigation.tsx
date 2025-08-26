@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 interface NavigationProps {
-  variant?: "landing" | "dashboard" | "admin" | "institution";
+  variant?: "landing" | "dashboard" | "admin";
   title?: string;
   showInstitutionBadge?: boolean;
 }
@@ -123,9 +123,7 @@ export function Navigation({
                           : "Application"}
                       </Link>
                     </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
-                      <Link href="/institution">Institution Settings</Link>
-                    </DropdownMenuItem>
+
                     {(session.user?.role === 'ADMIN' || session.user?.role === 'SUPER_ADMIN') && (
                       <DropdownMenuItem asChild>
                         <Link href="/admin">Admin Panel</Link>
@@ -159,7 +157,6 @@ export function Navigation({
         );
       case "dashboard":
       case "admin":
-      case "institution":
         return (
           <>
             <NotificationDropdown />
@@ -211,9 +208,7 @@ export function Navigation({
                         : "Application"}
                     </Link>
                   </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href="/institution">Institution Settings</Link>
-                  </DropdownMenuItem>
+
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     onClick={() => signOut({ callbackUrl: "/" })}
@@ -285,7 +280,6 @@ export function Navigation({
         );
       case "dashboard":
       case "admin":
-      case "institution":
         return (
           <div className="flex flex-col space-y-4 p-4">
             <div className="flex items-center justify-between">
