@@ -37,12 +37,24 @@ export function NotificationDropdown() {
     try {
       const response = await fetch("/api/notifications")
       if (response.ok) {
-        const data: NotificationResponse = await response.json()
-        setNotifications(data.notifications)
-        setUnreadCount(data.unreadCount)
+        const result = await response.json()
+        if (result.success && result.data) {
+          setNotifications(result.data.notifications || [])
+          setUnreadCount(result.data.unreadCount || 0)
+        } else {
+          console.error("Invalid API response structure:", result)
+          setNotifications([])
+          setUnreadCount(0)
+        }
+      } else {
+        console.error("Failed to fetch notifications:", response.status)
+        setNotifications([])
+        setUnreadCount(0)
       }
     } catch (error) {
       console.error("Error fetching notifications:", error)
+      setNotifications([])
+      setUnreadCount(0)
     }
   }
 
@@ -78,6 +90,8 @@ export function NotificationDropdown() {
   }
 
   const markAllAsRead = async () => {
+    if (!notifications) return
+    
     const unreadIds = notifications
       .filter(n => !n.isRead)
       .map(n => n.id)
@@ -154,7 +168,7 @@ export function NotificationDropdown() {
           )}
         </div>
         
-        {notifications.length === 0 ? (
+        {!notifications || notifications.length === 0 ? (
           <div className="p-4 text-center text-muted-foreground">
             <Bell className="w-8 h-8 mx-auto mb-2 opacity-50" />
             <p className="text-sm">No notifications</p>
@@ -162,7 +176,7 @@ export function NotificationDropdown() {
           </div>
         ) : (
           <div className="space-y-1">
-            {notifications.map((notification) => (
+            {notifications?.map((notification) => (
               <div
                 key={notification.id}
                 className={`p-3 hover:bg-muted/50 transition-colors cursor-pointer ${
