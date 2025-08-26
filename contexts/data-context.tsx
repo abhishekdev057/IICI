@@ -394,8 +394,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
                 }
 
                 // Check if evidence exists for this indicator
-                const evidenceData = (pillarData as any).evidence?.[indicatorId];
+                const evidenceKey = `${pillarId}_${indicatorId}`;
+                const evidenceData = state.currentApplication?.evidence?.[evidenceKey];
                 const hasEvidence = !!(evidenceData && (evidenceData.description || evidenceData.url || evidenceData.fileName));
+
+                if (hasEvidence) {
+                  console.log(`Evidence found for indicator ${indicatorId}:`, evidenceData);
+                }
 
                 indicatorResponses.push({
                   indicatorId,

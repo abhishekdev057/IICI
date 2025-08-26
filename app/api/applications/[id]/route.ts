@@ -155,6 +155,8 @@ export async function PUT(
 
         // Save evidence if provided
         if (evidence && (evidence.description || evidence.url || evidence.fileName)) {
+          console.log(`Saving evidence for indicator ${indicatorId}:`, evidence);
+          
           // Delete existing evidence for this indicator response
           await prisma.evidence.deleteMany({
             where: {
@@ -162,12 +164,22 @@ export async function PUT(
             }
           })
 
+          // Determine evidence type
+          let evidenceType = 'LINK';
+          if (evidence.type === 'file' || evidence.fileName) {
+            evidenceType = 'FILE';
+          } else if (evidence.type === 'text' || evidence.description) {
+            evidenceType = 'LINK'; // Use LINK for text evidence since TEXT is not in enum
+          }
+
+          console.log(`Evidence type determined: ${evidenceType}`);
+
           // Create new evidence record
-          await prisma.evidence.create({
+          const createdEvidence = await prisma.evidence.create({
             data: {
               indicatorResponseId: indicatorResponse.id,
               applicationId: id,
-              type: evidence.type === 'file' ? 'FILE' : 'LINK',
+              type: evidenceType,
               fileName: evidence.fileName || null,
               fileSize: evidence.fileSize || null,
               fileType: evidence.fileType || null,
@@ -175,6 +187,10 @@ export async function PUT(
               description: evidence.description || null
             }
           })
+          
+          console.log(`Evidence saved successfully:`, createdEvidence);
+        } else {
+          console.log(`No evidence to save for indicator ${indicatorId}`);
         }
       }
     }
