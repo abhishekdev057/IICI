@@ -177,9 +177,10 @@ export function IndicatorInput({
             <Input
               type="number"
               min="0"
+              max="1000"
               value={localValue}
               onChange={(e) => handleValueChange(Number(e.target.value))}
-              placeholder="Enter number"
+              placeholder="Enter number (0-1000)"
             />
           </div>
         )
