@@ -51,6 +51,7 @@ export function IndicatorInput({
   const [isUploading, setIsUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [uploadError, setUploadError] = useState<string | null>(null)
+  const [isDragOver, setIsDragOver] = useState(false)
   const { toast } = useToast()
 
   // Update local value when prop changes
@@ -165,6 +166,103 @@ export function IndicatorInput({
     }
 
     reader.readAsDataURL(file)
+  }, [handleEvidenceChange, toast])
+
+  // Handle drag and drop
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragOver(true)
+  }, [])
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragOver(false)
+  }, [])
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragOver(false)
+    
+    const files = e.dataTransfer.files
+    if (files.length > 0) {
+      const file = files[0]
+      // Process the file directly
+      if (!file) return
+
+      // Reset states
+      setUploadError(null)
+      setUploadProgress(0)
+      setIsUploading(true)
+
+      // Validate file size
+      if (file.size > 10 * 1024 * 1024) { // 10MB limit
+        setUploadError("File must be smaller than 10MB")
+        setIsUploading(false)
+        toast({
+          title: "File Too Large",
+          description: "Please select a file smaller than 10MB",
+          variant: "destructive",
+        })
+        return
+      }
+
+      // Validate file type
+      const allowedExtensions = ['.pdf', '.doc', '.docx', '.jpg', '.jpeg', '.png', '.xls', '.xlsx', '.ppt', '.pptx', '.txt', '.csv', '.zip']
+      const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase()
+      
+      if (!allowedExtensions.includes(fileExtension)) {
+        setUploadError(`File type not supported. Allowed: ${allowedExtensions.join(', ')}`)
+        setIsUploading(false)
+        toast({
+          title: "Unsupported File Type",
+          description: `Please select a file with one of these extensions: ${allowedExtensions.join(', ')}`,
+          variant: "destructive",
+        })
+        return
+      }
+
+      const reader = new FileReader()
+      
+      reader.onprogress = (e) => {
+        if (e.lengthComputable) {
+          const progress = Math.round((e.loaded / e.total) * 100)
+          setUploadProgress(progress)
+        }
+      }
+
+      reader.onload = (e) => {
+        const result = e.target?.result as string
+        handleEvidenceChange('url', result)
+        handleEvidenceChange('fileName', file.name)
+        handleEvidenceChange('fileSize', file.size)
+        handleEvidenceChange('fileType', file.type)
+        handleEvidenceChange('type', 'file')
+        
+        setIsUploading(false)
+        setUploadProgress(100)
+        
+        toast({
+          title: "File Uploaded Successfully!",
+          description: `${file.name} has been uploaded as evidence.`,
+          variant: "default",
+        })
+
+        // Reset progress after a delay
+        setTimeout(() => setUploadProgress(0), 2000)
+      }
+
+      reader.onerror = () => {
+        setUploadError("Failed to read file. Please try again.")
+        setIsUploading(false)
+        toast({
+          title: "Upload Failed",
+          description: "Failed to read file. Please try again.",
+          variant: "destructive",
+        })
+      }
+
+      reader.readAsDataURL(file)
+    }
   }, [handleEvidenceChange, toast])
 
   // Get input type based on measurement unit
@@ -445,26 +543,81 @@ export function IndicatorInput({
                 </div>
               )}
 
-              {/* File Display */}
+              {/* File Preview and Display */}
               {localEvidence.fileName && !isUploading && (
-                <div className="flex items-center gap-2 p-2 bg-muted rounded">
-                  <File className="h-4 w-4" />
-                  <span className="text-sm flex-1">{localEvidence.fileName}</span>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 p-3 bg-muted/50 border rounded-lg">
+                    <div className="flex-shrink-0">
+                      <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+                        <File className="h-5 w-5 text-primary" />
+                      </div>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{localEvidence.fileName}</p>
+                      {localEvidence.fileSize && (
+                        <p className="text-xs text-muted-foreground">
+                          {(localEvidence.fileSize / 1024 / 1024).toFixed(2)} MB
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          handleEvidenceChange('fileName', '')
+                          handleEvidenceChange('url', '')
+                          handleEvidenceChange('fileSize', null)
+                          handleEvidenceChange('fileType', null)
+                          handleEvidenceChange('type', 'text')
+                          setUploadError(null)
+                        }}
+                        className="h-8 px-2"
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          document.getElementById(`file-${indicator.id}`)?.click()
+                        }}
+                        className="h-8 px-2"
+                      >
+                        Change
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* File Upload Area (when no file is present) */}
+              {!localEvidence.fileName && !isUploading && (
+                <div 
+                  className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+                    isDragOver 
+                      ? 'border-primary bg-primary/5' 
+                      : 'border-muted-foreground/25 hover:border-muted-foreground/50'
+                  }`}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                >
+                  <Upload className={`h-8 w-8 mx-auto mb-2 ${isDragOver ? 'text-primary' : 'text-muted-foreground'}`} />
+                  <p className="text-sm text-muted-foreground mb-2">
+                    {isDragOver ? 'Drop your file here' : 'Click to upload a file or drag and drop'}
+                  </p>
                   <Button
                     type="button"
-                    variant="ghost"
+                    variant="outline"
                     size="sm"
                     onClick={() => {
-                      handleEvidenceChange('fileName', '')
-                      handleEvidenceChange('url', '')
-                      handleEvidenceChange('fileSize', null)
-                      handleEvidenceChange('fileType', null)
-                      handleEvidenceChange('type', 'text')
-                      setUploadError(null)
+                      document.getElementById(`file-${indicator.id}`)?.click()
                     }}
-                    className="h-auto p-1"
                   >
-                    <X className="h-3 w-3" />
+                    Choose File
                   </Button>
                 </div>
               )}

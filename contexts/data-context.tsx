@@ -408,6 +408,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
                 if (hasEvidence) {
                   console.log(`Evidence found for indicator ${indicatorId}:`, evidenceData);
+                } else {
+                  console.log(`No evidence found for indicator ${indicatorId}. Pillar evidence:`, pillarEvidence, 'Global evidence:', globalEvidence);
                 }
 
                 indicatorResponses.push({
