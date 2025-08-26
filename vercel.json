@@ -1,5 +1,5 @@
 {
-  "buildCommand": "npm run vercel-build-force",
+  "buildCommand": "rm -rf node_modules/.prisma && rm -rf node_modules/@prisma && rm -rf node_modules/prisma && npm cache clean --force && npm install && npx prisma generate --force && npm run build",
   "installCommand": "npm install",
   "framework": "nextjs",
   "functions": {
