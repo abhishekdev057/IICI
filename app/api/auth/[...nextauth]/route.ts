@@ -30,16 +30,28 @@ export const authOptions: NextAuthOptions = {
           const userId = token.sub
           
           if (userId) {
-            // Get user from database
-            const dbUser = await prisma.user.findUnique({
-              where: { id: userId },
-              select: { role: true, isActive: true }
-            })
+            // Prefer token role, otherwise fetch
+            let role = (token as any).role as string | undefined
+            let isActive = true
+            if (!role) {
+              const dbUser = await prisma.user.findUnique({
+                where: { id: userId },
+                select: { role: true, isActive: true }
+              })
+              role = dbUser?.role || 'USER'
+              isActive = dbUser?.isActive ?? true
+            } else {
+              // If role came from token, ensure isActive defaults to true
+              isActive = (token as any).isActive ?? true
+            }
             
             // Set session user properties
             session.user.id = userId
-            session.user.role = dbUser?.role || 'USER'
-            session.user.isActive = dbUser?.isActive ?? true
+            session.user.role = (role as any) || 'USER'
+            session.user.isActive = isActive
+            // Mirror application status from token if present
+            // @ts-ignore
+            session.user.applicationStatus = (token as any).applicationStatus || null
             
             console.log('✅ Session set with user ID:', userId)
           } else {
@@ -129,8 +141,9 @@ export const authOptions: NextAuthOptions = {
             console.log(`✅ Existing user signed in: ${token.email} with role: ${userRole}`)
           }
 
-          // Set user ID in token
+          // Set user ID and role in token
           token.sub = dbUser.id
+          ;(token as any).role = dbUser.role
           console.log('✅ Set token.sub to:', dbUser.id)
         } catch (error) {
           console.error("❌ Error during user creation/update:", error)
@@ -140,13 +153,47 @@ export const authOptions: NextAuthOptions = {
           }
         }
       }
+
+      // Enrich token with latest application status for middleware routing
+      try {
+        if (token.sub) {
+          const latestApp = await prisma.application.findFirst({
+            where: { userId: token.sub as string },
+            orderBy: { updatedAt: 'desc' },
+            select: { id: true, status: true }
+          })
+          ;(token as any).applicationId = latestApp?.id || null
+          ;(token as any).applicationStatus = latestApp?.status || null
+          // If role missing (non-provider path), fetch it here
+          if (!(token as any).role) {
+            const dbUserForRole = await prisma.user.findUnique({
+              where: { id: token.sub as string },
+              select: { role: true, isActive: true }
+            })
+            if (dbUserForRole) {
+              ;(token as any).role = dbUserForRole.role
+              ;(token as any).isActive = dbUserForRole.isActive
+            }
+          }
+        }
+      } catch (e) {
+        // Ignore token enrichment errors
+      }
       return token
     },
     async redirect({ url, baseUrl }) {
       // Handle redirects properly
-      if (url.startsWith("/")) return `${baseUrl}${url}`
-      else if (new URL(url).origin === baseUrl) return url
-      return baseUrl
+      try {
+        const target = new URL(url, baseUrl)
+        // Default post-auth landing: application
+        if (target.origin === baseUrl) {
+          if (target.pathname === "/" || target.pathname === "/auth") {
+            return `${baseUrl}/application`
+          }
+          return target.toString()
+        }
+      } catch {}
+      return `${baseUrl}/application`
     },
   },
   pages: {

@@ -2,7 +2,7 @@
 
 import { signIn, signOut, useSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState, Suspense } from "react";
+import { useEffect, useState, useRef, Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +16,7 @@ function AuthPageContent() {
   const searchParams = useSearchParams();
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const navigatedRef = useRef(false);
 
   // Safety check: validate and sanitize callback URL
   const rawCallbackUrl = searchParams.get("callbackUrl");
@@ -23,9 +24,14 @@ function AuthPageContent() {
 
   if (rawCallbackUrl) {
     try {
-      // Check if the callback URL is reasonable length and valid
-      if (rawCallbackUrl.length < 2000 && rawCallbackUrl.startsWith("/")) {
-        callbackUrl = rawCallbackUrl;
+      if (rawCallbackUrl.length < 2000) {
+        if (rawCallbackUrl.startsWith("/")) {
+          callbackUrl = rawCallbackUrl;
+        } else {
+          // Accept absolute URLs (e.g., http://localhost:3000/admin) and extract path
+          const u = new URL(rawCallbackUrl);
+          callbackUrl = u.pathname + (u.search || "");
+        }
       }
     } catch (error) {
       console.warn("Invalid callback URL:", rawCallbackUrl);
@@ -85,19 +91,25 @@ function AuthPageContent() {
 
   useEffect(() => {
     if (session) {
-      // Redirect based on user role or callback URL
-      if (session.user.role === "SUPER_ADMIN") {
-        // Super admins always go to admin dashboard unless they were trying to access a specific page
+      if (navigatedRef.current) return;
+      navigatedRef.current = true;
+
+      // Decide target based on role/callback
+      let target = callbackUrl;
+      if (session.user.role === "SUPER_ADMIN" || session.user.role === "ADMIN") {
         const isAdminRoute = callbackUrl.startsWith("/admin");
-        router.push(isAdminRoute ? callbackUrl : "/admin");
-      } else if (session.user.role === "ADMIN") {
-        // Regular admins can access admin routes
-        const isAdminRoute = callbackUrl.startsWith("/admin");
-        router.push(isAdminRoute ? callbackUrl : "/dashboard");
-      } else {
-        // Regular users go to dashboard
-        router.push(callbackUrl);
+        target = isAdminRoute ? callbackUrl : "/admin";
       }
+
+      // Try SPA push, then hard navigation as fallback
+      try {
+        router.push(target);
+      } catch {}
+      setTimeout(() => {
+        if (typeof window !== 'undefined' && window.location.pathname !== target) {
+          window.location.assign(target);
+        }
+      }, 200);
     }
   }, [session, router, callbackUrl]);
 
@@ -144,7 +156,9 @@ function AuthPageContent() {
         <div className="text-center">
           <CheckCircle className="w-12 h-12 text-green-600 mx-auto mb-4" />
           <h2 className="text-xl font-semibold mb-2">Welcome back!</h2>
-          <p className="text-muted-foreground">Redirecting you to your dashboard...</p>
+          <p className="text-muted-foreground">
+            Redirecting you to {session?.user?.role === 'ADMIN' || session?.user?.role === 'SUPER_ADMIN' ? 'admin dashboard' : 'your dashboard'}...
+          </p>
         </div>
       </div>
     );

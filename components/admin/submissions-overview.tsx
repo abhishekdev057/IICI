@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useSession } from "next-auth/react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -38,11 +39,16 @@ interface SubmissionsOverviewProps {
 }
 
 export function SubmissionsOverview({ onViewSubmission }: SubmissionsOverviewProps) {
+  const { data: session } = useSession()
   const [submissions, setSubmissions] = useState<Submission[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [industryFilter, setIndustryFilter] = useState("all")
+  const isSuperAdmin = session?.user?.role === 'SUPER_ADMIN'
+  const [admins, setAdmins] = useState<Array<{ id: string; name: string; email: string }>>([])
+  const [assigningId, setAssigningId] = useState<string | null>(null)
+  const [selectedReviewerByApp, setSelectedReviewerByApp] = useState<Record<string, string>>({})
 
   // Fetch real data from API
   useEffect(() => {
@@ -80,6 +86,21 @@ export function SubmissionsOverview({ onViewSubmission }: SubmissionsOverviewPro
     }
 
     fetchSubmissions()
+    // Load admins list for assignment (super admin only)
+    const fetchAdmins = async () => {
+      try {
+        if (!isSuperAdmin) return
+        const res = await fetch('/api/admin/users')
+        if (res.ok) {
+          const json = await res.json()
+          const onlyAdmins = (json.users || [])
+            .filter((u: any) => u.role === 'ADMIN')
+            .map((u: any) => ({ id: u.id, name: u.name || u.email, email: u.email }))
+          setAdmins(onlyAdmins)
+        }
+      } catch {}
+    }
+    fetchAdmins()
   }, [])
 
   const filteredSubmissions = submissions.filter(submission => {
@@ -90,6 +111,40 @@ export function SubmissionsOverview({ onViewSubmission }: SubmissionsOverviewPro
     
     return matchesSearch && matchesStatus && matchesIndustry
   })
+
+  const assignToMe = async (id: string) => {
+    try {
+      setAssigningId(id)
+      const res = await fetch(`/api/admin/applications/${id}/assign`, { method: 'PATCH' })
+      if (res.ok) {
+        // Refresh list
+        setSubmissions(prev => prev.map(s => s.id === id ? { ...s, status: 'under_review', reviewerName: session?.user?.name || 'Me' } : s))
+      }
+      setAssigningId(null)
+    } catch (e) {
+      console.error('Failed to assign', e)
+      setAssigningId(null)
+    }
+  }
+
+  const assignToReviewer = async (appId: string, reviewerId: string) => {
+    try {
+      setAssigningId(appId)
+      const res = await fetch(`/api/admin/applications/${appId}/assign`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reviewerId })
+      })
+      if (res.ok) {
+        const admin = admins.find(a => a.id === reviewerId)
+        setSubmissions(prev => prev.map(s => s.id === appId ? { ...s, status: 'under_review', reviewerName: admin?.name || 'Assigned' } : s))
+      }
+      setAssigningId(null)
+    } catch (e) {
+      console.error('Failed to assign to reviewer', e)
+      setAssigningId(null)
+    }
+  }
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -298,14 +353,44 @@ export function SubmissionsOverview({ onViewSubmission }: SubmissionsOverviewPro
                     </TableCell>
                     <TableCell>{getPriorityBadge(submission.priority)}</TableCell>
                     <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => onViewSubmission(submission.id)}
-                      >
-                        <Eye className="w-4 h-4 mr-1" />
-                        Review
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        {isSuperAdmin && (
+                          <>
+                            <Select
+                              value={selectedReviewerByApp[submission.id] || ''}
+                              onValueChange={(val) => setSelectedReviewerByApp(prev => ({ ...prev, [submission.id]: val }))}
+                            >
+                              <SelectTrigger className="w-[200px]">
+                                <SelectValue placeholder="Assign to admin" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {admins.map(a => (
+                                  <SelectItem key={a.id} value={a.id}>{a.name} ({a.email})</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={!selectedReviewerByApp[submission.id] || assigningId === submission.id}
+                              onClick={() => assignToReviewer(submission.id, selectedReviewerByApp[submission.id])}
+                            >
+                              {assigningId === submission.id ? 'Assigning...' : 'Assign'}
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={() => assignToMe(submission.id)}>
+                              Assign to me
+                            </Button>
+                          </>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => onViewSubmission(submission.id)}
+                        >
+                          <Eye className="w-4 h-4 mr-1" />
+                          Review
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))

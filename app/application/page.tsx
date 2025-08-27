@@ -4,6 +4,7 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { FormWizard } from "@/components/application/form-wizard";
+import { DataProvider } from "@/contexts/data-context";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Shield, ArrowRight, Building2, Award } from "lucide-react";
@@ -14,6 +15,9 @@ export default function ApplicationPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const [isRedirecting, setIsRedirecting] = useState(false);
+
+  // Add debugging
+  console.log('ApplicationPage render - session:', session, 'status:', status);
 
   useEffect(() => {
     if (status === "loading") return;
@@ -121,36 +125,38 @@ export default function ApplicationPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <Navigation variant="dashboard" title="IIICI Application" />
-      <div className="container mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center gap-4 mb-4">
-            <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center">
-              <Building2 className="w-8 h-8 text-primary" />
+    <DataProvider>
+      <div className="min-h-screen bg-background">
+        <Navigation variant="dashboard" title="IIICI Application" />
+        <div className="container mx-auto px-4 py-8">
+          {/* Header */}
+          <div className="mb-8">
+            <div className="flex items-center gap-4 mb-4">
+              <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center">
+                <Building2 className="w-8 h-8 text-primary" />
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold text-foreground font-[family-name:var(--font-space-grotesk)]">
+                  IIICI Certification Application
+                </h1>
+                <p className="text-muted-foreground">
+                  Complete your institutional innovation assessment to earn your certification
+                </p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-3xl font-bold text-foreground font-[family-name:var(--font-space-grotesk)]">
-                IIICI Certification Application
-              </h1>
-              <p className="text-muted-foreground">
-                Complete your institutional innovation assessment to earn your certification
-              </p>
+            <div className="flex items-center gap-2">
+              <Award className="w-4 h-4 text-primary" />
+              <span className="text-sm text-muted-foreground">
+                Step-by-step assessment process • Industry-standard evaluation • Professional certification
+              </span>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Award className="w-4 h-4 text-primary" />
-            <span className="text-sm text-muted-foreground">
-              Step-by-step assessment process • Industry-standard evaluation • Professional certification
-            </span>
-          </div>
-        </div>
 
-        {/* Application Form */}
-        <FormWizard />
+          {/* Application Form */}
+          <FormWizard />
+        </div>
+        <Footer variant="minimal" />
       </div>
-      <Footer variant="minimal" />
-    </div>
+    </DataProvider>
   );
 }

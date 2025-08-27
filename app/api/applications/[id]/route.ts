@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { prisma } from '@/lib/prisma'
 import { authOptions } from '@/app/api/auth/[...nextauth]/route'
+import { DatabaseService } from '@/lib/database-service'
 
 export async function GET(
   request: NextRequest,
@@ -129,6 +130,13 @@ export async function PUT(
       console.log('Total indicator responses to process:', indicatorResponses.length);
       for (const response of indicatorResponses) {
         const { indicatorId, pillarId, rawValue, normalizedScore, measurementUnit, hasEvidence, evidence } = response
+        
+        // Skip invalid responses
+        if (!indicatorId || indicatorId === 'undefined' || !pillarId) {
+          console.log(`Skipping invalid response:`, { indicatorId, pillarId });
+          continue;
+        }
+        
         console.log(`Processing indicator ${indicatorId} (pillar ${pillarId}):`, { hasEvidence, evidence });
         
         // Save or update indicator response
@@ -156,8 +164,33 @@ export async function PUT(
         })
 
         // Save evidence if provided
-        if (evidence && (evidence.description || evidence.url || evidence.fileName)) {
+        if (evidence && (
+          evidence.text?.description ||
+          evidence.link?.url ||
+          evidence.file?.fileName ||
+          // Fallback for old format
+          evidence.description || 
+          evidence.url || 
+          evidence.fileName || 
+          evidence.type
+        )) {
           console.log(`Saving evidence for indicator ${indicatorId}:`, evidence);
+        } else if (evidence) {
+          console.log(`Evidence object exists but no content for indicator ${indicatorId}:`, evidence);
+        } else {
+          console.log(`No evidence object for indicator ${indicatorId}`);
+        }
+        
+        if (evidence && (
+          evidence.text?.description ||
+          evidence.link?.url ||
+          evidence.file?.fileName ||
+          // Fallback for old format
+          evidence.description || 
+          evidence.url || 
+          evidence.fileName || 
+          evidence.type
+        )) {
           
           // Delete existing evidence for this indicator response
           await prisma.evidence.deleteMany({
@@ -166,31 +199,106 @@ export async function PUT(
             }
           })
 
-          // Determine evidence type
-          let evidenceType = 'LINK';
-          if (evidence.type === 'file' || evidence.fileName) {
-            evidenceType = 'FILE';
-          } else if (evidence.type === 'text' || evidence.description) {
-            evidenceType = 'LINK'; // Use LINK for text evidence since TEXT is not in enum
+          // Build up to three evidence records (text, link, file)
+          const recordsToCreate: Array<{
+            type: 'FILE' | 'LINK'
+            fileName: string | null
+            fileSize: number | null
+            fileType: string | null
+            url: string
+            description: string | null
+          }> = []
+
+          // Text evidence (stored as LINK type with description only)
+          if (evidence.text?.description && evidence.text.description.trim() !== '') {
+            recordsToCreate.push({
+              type: 'LINK',
+              fileName: null,
+              fileSize: null,
+              fileType: null,
+              url: '',
+              description: evidence.text.description.trim()
+            })
           }
 
-          console.log(`Evidence type determined: ${evidenceType}`);
+          // Link evidence
+          if (evidence.link?.url && evidence.link.url.trim() !== '') {
+            recordsToCreate.push({
+              type: 'LINK',
+              fileName: null,
+              fileSize: null,
+              fileType: null,
+              url: evidence.link.url.trim(),
+              description: (evidence.link.description || '').trim() || null
+            })
+          }
 
-          // Create new evidence record
-          const createdEvidence = await prisma.evidence.create({
-            data: {
-              indicatorResponseId: indicatorResponse.id,
-              applicationId: id,
-              type: evidenceType,
-              fileName: evidence.fileName || null,
-              fileSize: evidence.fileSize || null,
-              fileType: evidence.fileType || null,
-              url: evidence.url || '',
-              description: evidence.description || null
+          // File evidence
+          if (evidence.file?.fileName && evidence.file.fileName.trim() !== '') {
+            recordsToCreate.push({
+              type: 'FILE',
+              fileName: evidence.file.fileName,
+              fileSize: evidence.file.fileSize || null,
+              fileType: evidence.file.fileType || null,
+              url: evidence.file.url || '',
+              description: (evidence.file.description || '').trim() || null
+            })
+          }
+
+          // Fallback for old flat format
+          if (recordsToCreate.length === 0) {
+            // Old-style file
+            if (evidence.fileName && evidence.fileName.trim() !== '') {
+              recordsToCreate.push({
+                type: 'FILE',
+                fileName: evidence.fileName,
+                fileSize: evidence.fileSize || null,
+                fileType: evidence.fileType || null,
+                url: evidence.url || '',
+                description: (evidence.description || '').trim() || null
+              })
+            } else if (evidence.url && evidence.url.trim() !== '') {
+              // Old-style link
+              recordsToCreate.push({
+                type: 'LINK',
+                fileName: null,
+                fileSize: null,
+                fileType: null,
+                url: evidence.url.trim(),
+                description: (evidence.description || '').trim() || null
+              })
+            } else if (evidence.description && evidence.description.trim() !== '') {
+              // Old-style text (as LINK with description)
+              recordsToCreate.push({
+                type: 'LINK',
+                fileName: null,
+                fileSize: null,
+                fileType: null,
+                url: '',
+                description: evidence.description.trim()
+              })
             }
-          })
-          
-          console.log(`Evidence saved successfully:`, createdEvidence);
+          }
+
+          if (recordsToCreate.length === 0) {
+            console.log(`Evidence exists but has no content for indicator ${indicatorId} - skipping save`)
+          } else {
+            for (const rec of recordsToCreate) {
+              const createdEvidence = await prisma.evidence.create({
+                data: {
+                  indicatorResponseId: indicatorResponse.id,
+                  applicationId: id,
+                  type: rec.type as any,
+                  fileName: rec.fileName,
+                  fileSize: rec.fileSize,
+                  fileType: rec.fileType,
+                  url: rec.url,
+                  description: rec.description
+                }
+              })
+              console.log(`Evidence saved successfully:`, createdEvidence)
+            }
+          }
         } else {
           console.log(`No evidence to save for indicator ${indicatorId}`);
         }
@@ -235,20 +343,25 @@ export async function PUT(
       message: 'Application updated successfully',
       data: updatedApplication
     })
-  } catch (error) {
+      } catch (error: any) {
     console.error('Error updating application:', error)
-    
-    // More specific error handling
-    if (error.code === 'P2025') {
-      return NextResponse.json({ error: 'Application not found' }, { status: 404 })
-    }
-    
-    if (error.code === 'P2002') {
-      return NextResponse.json({ error: 'Duplicate entry conflict' }, { status: 409 })
+      console.error('Error details:', {
+        message: error.message,
+        code: error.code,
+        stack: error.stack
+      })
+      
+      // More specific error handling
+      if (error.code === 'P2025') {
+        return NextResponse.json({ error: 'Application not found' }, { status: 404 })
+      }
+      
+      if (error.code === 'P2002') {
+        return NextResponse.json({ error: 'Duplicate entry conflict' }, { status: 409 })
     }
     
     return NextResponse.json(
-      { error: 'Failed to update application', details: error.message },
+        { error: 'Failed to update application', details: error.message },
       { status: 500 }
     )
   }

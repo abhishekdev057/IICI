@@ -13,6 +13,7 @@ import { OverviewCharts } from "@/components/dashboard/overview-charts"
 import { PillarDetails } from "@/components/dashboard/pillar-details"
 import { ExportReports } from "@/components/dashboard/export-reports"
 import { HistoricalTracking } from "@/components/dashboard/historical-tracking"
+import { DataProvider } from "@/contexts/data-context"
 
 // Helper functions for indicator data
 const getIndicatorShortName = (indicatorId: string): string => {
@@ -109,7 +110,7 @@ const getNormalizedScore = (indicatorId: string, value: any): number => {
   return 0
 }
 
-export default function DashboardPage() {
+function DashboardContent() {
   const { state, calculateScores } = useData()
 
   const application = state.currentApplication
@@ -213,7 +214,7 @@ export default function DashboardPage() {
   }
 
   // Check if application is in a state that allows dashboard access
-  const canViewDashboard = application.status === "submitted" || application.status === "under_review" || application.status === "certified" || application.status === "approved"
+  const canViewDashboard = application.status === "submitted" || application.status === "under_review" || application.status === "certified" || application.status === "approved" || application.status === "draft"
   
   if (!canViewDashboard) {
     return (
@@ -326,7 +327,7 @@ export default function DashboardPage() {
       : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
   }
 
-  const historicalData = dashboardData.historicalData || [
+  const historicalData = [
     {
       year: new Date().getFullYear(),
       overallScore: overallScore,
@@ -444,11 +445,7 @@ export default function DashboardPage() {
             <Badge variant="outline" className="text-xs">
               Last updated: {new Date(application.lastSaved).toLocaleString()}
             </Badge>
-            {state.hasUnsavedChanges && (
-              <Badge variant="secondary" className="text-xs">
-                Saving changes...
-              </Badge>
-            )}
+
           </div>
         </div>
 
@@ -503,5 +500,13 @@ export default function DashboardPage() {
 
       <Footer variant="minimal" />
     </div>
+  )
+}
+
+export default function DashboardPage() {
+  return (
+    <DataProvider>
+      <DashboardContent />
+    </DataProvider>
   )
 }

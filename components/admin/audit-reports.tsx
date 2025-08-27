@@ -98,6 +98,15 @@ export function AuditReports() {
     )
   }
 
+  const totalApps = typeof stats.totalApplications === 'number' ? stats.totalApplications : 0
+  const totalCerts = typeof stats.totalCertifications === 'number' ? stats.totalCertifications : 0
+  const avgProcDays = typeof stats.averageProcessingTime === 'number' ? stats.averageProcessingTime : 0
+  const successRate = totalApps > 0 ? Math.round((totalCerts / totalApps) * 100) : 0
+  const trends = Array.isArray(stats.submissionTrends) ? stats.submissionTrends : []
+  const industries = Array.isArray(stats.industryDistribution) ? stats.industryDistribution : []
+  const levels = Array.isArray(stats.certificationLevels) ? stats.certificationLevels : []
+  const reviewers = Array.isArray(stats.reviewerPerformance) ? stats.reviewerPerformance : []
+
   return (
     <div className="space-y-6">
       {/* Report Controls */}
@@ -143,7 +152,7 @@ export function AuditReports() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Total Submissions</p>
-                <p className="text-2xl font-bold">{stats.totalApplications}</p>
+                <p className="text-2xl font-bold">{totalApps}</p>
                 <p className="text-xs text-secondary flex items-center">
                   <TrendingUp className="w-3 h-3 mr-1" />
                   +12% from last month
@@ -159,7 +168,7 @@ export function AuditReports() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Total Users</p>
-                <p className="text-2xl font-bold">{stats.totalUsers}</p>
+                <p className="text-2xl font-bold">{typeof stats.totalUsers === 'number' ? stats.totalUsers : 0}</p>
                 <p className="text-xs text-secondary flex items-center">
                   <TrendingUp className="w-3 h-3 mr-1" />
                   +8% from last month
@@ -175,10 +184,10 @@ export function AuditReports() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Certifications</p>
-                <p className="text-2xl font-bold">{stats.totalCertifications}</p>
+                <p className="text-2xl font-bold">{totalCerts}</p>
                 <p className="text-xs text-secondary flex items-center">
                   <Award className="w-3 h-3 mr-1" />
-                  {Math.round((stats.totalCertifications / stats.totalApplications) * 100)}% success rate
+                  {successRate}% success rate
                 </p>
               </div>
               <Award className="w-8 h-8 text-accent" />
@@ -191,7 +200,7 @@ export function AuditReports() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Avg Processing Time</p>
-                <p className="text-2xl font-bold">{stats.averageProcessingTime.toFixed(1)}d</p>
+                <p className="text-2xl font-bold">{avgProcDays.toFixed(1)}d</p>
                 <p className="text-xs text-secondary flex items-center">
                   <Clock className="w-3 h-3 mr-1" />
                   Target: 5 days
@@ -212,7 +221,7 @@ export function AuditReports() {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={stats.submissionTrends}>
+              <LineChart data={trends}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis />
@@ -235,7 +244,7 @@ export function AuditReports() {
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
-                  data={stats.industryDistribution}
+                  data={industries}
                   cx="50%"
                   cy="50%"
                   labelLine={false}
@@ -244,7 +253,7 @@ export function AuditReports() {
                   fill="#8884d8"
                   dataKey="value"
                 >
-                  {stats.industryDistribution.map((entry, index) => (
+                  {industries.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
@@ -261,7 +270,7 @@ export function AuditReports() {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={stats.certificationLevels}>
+              <BarChart data={levels}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="level" />
                 <YAxis />
@@ -279,7 +288,7 @@ export function AuditReports() {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={stats.reviewerPerformance}>
+              <BarChart data={reviewers}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="name" />
                 <YAxis />

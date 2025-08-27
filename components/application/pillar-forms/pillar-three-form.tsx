@@ -60,41 +60,58 @@ export function PillarThreeForm({ onDataChange, onScoreChange, initialData }: Pi
   const [formData, setFormData] = useState(initialData?.indicators || {})
   const [evidence, setEvidence] = useState(initialData?.evidence || {})
 
+  // Sync local evidence when context-provided initialData.evidence changes
+  useEffect(() => {
+    setEvidence(initialData?.evidence || {})
+  }, [initialData?.evidence])
+
   // Calculate completion and score - MEMOIZED
   const stats = useMemo(() => {
-    const responses = Object.keys(formData).filter(key => 
-      formData[key] !== undefined && formData[key] !== null && formData[key] !== ""
-    ).length
-    const evidenceCount = Object.keys(evidence).length
     const total = pillarThreeIndicators.length
-    
+
+    const hasPersistedEvidence = (indicatorId: string) => {
+      const ev = (evidence as any)?.[indicatorId]
+      if (!ev) return false
+      return !!(
+        (ev.text?._persisted && ev.text.description && ev.text.description.trim() !== '') ||
+        (ev.link?._persisted && ev.link.url && ev.link.url.trim() !== '') ||
+        (ev.file?._persisted && ev.file.fileName)
+      )
+    }
+
+    let responses = 0
     let totalScore = 0
     let scoredIndicators = 0
-    
+
     pillarThreeIndicators.forEach(indicator => {
-      const value = formData[indicator.id]
-      if (value !== undefined && value !== null && value !== "") {
+      const value = (formData as any)[indicator.id]
+      const hasValue = value !== undefined && value !== null && value !== ''
+      const responded = hasValue || hasPersistedEvidence(indicator.id)
+      if (responded) responses++
+
+      if (hasValue) {
         scoredIndicators++
-        if (indicator.measurementUnit.includes("Score")) {
+        if (indicator.measurementUnit.includes('Score')) {
           const maxScore = indicator.maxScore || 5
           totalScore += (value / maxScore) * 100
-        } else if (indicator.measurementUnit.includes("Percentage")) {
-          totalScore += Math.min(value, 100) // Cap percentage at 100%
-        } else if (indicator.measurementUnit === "Number") {
-          // Normalize based on example (200 ideas = 100%)
+        } else if (indicator.measurementUnit.includes('Percentage')) {
+          totalScore += Math.min(value, 100)
+        } else if (indicator.measurementUnit === 'Number') {
           totalScore += Math.min((value / 200) * 100, 100)
         }
       }
     })
-    
-    const averageScore = scoredIndicators > 0 ? Math.min(totalScore / scoredIndicators, 100) : 0 // Cap average at 100%
-    
+
+    responses = Math.min(responses, total)
+    const averageScore = scoredIndicators > 0 ? Math.min(totalScore / scoredIndicators, 100) : 0
+    const completion = Math.min((responses / total) * 100, 100)
+
     return {
       responses,
-      evidenceCount,
+      evidenceCount: Object.keys(evidence || {}).length,
       total,
       averageScore,
-      completion: (responses / total) * 100
+      completion
     }
   }, [formData, evidence])
 
@@ -119,10 +136,14 @@ export function PillarThreeForm({ onDataChange, onScoreChange, initialData }: Pi
 
   // Handle evidence changes
   const handleEvidenceChange = useCallback((indicatorId: string, evidenceData: any) => {
-    setEvidence((prev: any) => ({
-      ...prev,
-      [indicatorId]: evidenceData
-    }))
+    console.log(`Evidence changed for indicator ${indicatorId}:`, evidenceData);
+    // Use setTimeout to defer the state update and avoid render conflicts
+    setTimeout(() => {
+      setEvidence((prev: any) => ({
+        ...prev,
+        [indicatorId]: evidenceData
+      }))
+    }, 0);
   }, [])
 
   return (

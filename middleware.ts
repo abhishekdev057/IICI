@@ -32,6 +32,24 @@ export default withAuth(
         authUrl.searchParams.set("callbackUrl", req.url)
         return NextResponse.redirect(authUrl)
       }
+
+      // If ADMIN or SUPER_ADMIN, always use admin dashboard, not user dashboard/application
+      if (token.role === 'ADMIN' || token.role === 'SUPER_ADMIN') {
+        if (pathname.startsWith('/dashboard') || pathname.startsWith('/application')) {
+          const adminUrl = new URL('/admin', req.url)
+          return NextResponse.redirect(adminUrl)
+        }
+      }
+
+      // Gate dashboard until application is submitted
+      if (pathname.startsWith("/dashboard")) {
+        const applicationStatus = (token as any).applicationStatus as string | undefined
+        const cookieSubmitted = req.cookies.get('iiici_app_submitted')?.value === 'true'
+        if (!(cookieSubmitted || (applicationStatus && applicationStatus.toLowerCase() === 'submitted'))) {
+          const appUrl = new URL("/application", req.url)
+          return NextResponse.redirect(appUrl)
+        }
+      }
     }
 
     return NextResponse.next()

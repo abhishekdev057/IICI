@@ -19,15 +19,39 @@ const reconstructEvidenceData = (indicators: any[]): any => {
   
   indicators.forEach((indicator) => {
     if (indicator.evidence && indicator.evidence.length > 0) {
-      const evidence = indicator.evidence[0]; // Take the first evidence record
-      evidenceData[indicator.indicatorId] = {
-        type: evidence.type === 'FILE' ? 'file' : evidence.type === 'LINK' ? 'link' : 'text',
-        description: evidence.description || '',
-        url: evidence.url || '',
-        fileName: evidence.fileName || '',
-        fileSize: evidence.fileSize || null,
-        fileType: evidence.fileType || null
-      };
+      // Combine multiple evidence rows (text/link/file)
+      const frontendEvidence: any = {};
+
+      indicator.evidence.forEach((ev: any) => {
+        if (ev.type === 'FILE' && (ev.fileName || ev.url)) {
+          frontendEvidence.file = {
+            fileName: ev.fileName || '',
+            fileSize: ev.fileSize || null,
+            fileType: ev.fileType || null,
+            url: ev.url || '',
+            description: ev.description || '',
+            _persisted: true
+          };
+        } else if (ev.type === 'LINK' && ev.url) {
+          // Treat URL-containing LINK as link evidence
+          frontendEvidence.link = {
+            url: ev.url || '',
+            description: ev.description || '',
+            _persisted: true
+          };
+        } else if (ev.type === 'LINK' && ev.description && !ev.url) {
+          // Treat description-only LINK as text evidence
+          frontendEvidence.text = {
+            description: ev.description || '',
+            _persisted: true
+          };
+        }
+      });
+
+      // Key global evidence by pillarId_indicatorId to match save logic
+      const pillarIdPart = indicator.pillarId ?? indicator.pillar_id ?? indicator.pillar ?? ''
+      const evidenceKey = pillarIdPart !== '' ? `${pillarIdPart}_${indicator.indicatorId}` : indicator.indicatorId
+      evidenceData[evidenceKey] = frontendEvidence;
     }
   });
   
@@ -158,6 +182,26 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const { data: session } = useSession();
   const { toast } = useToast();
 
+  // Add error boundary for the provider
+  const [providerError, setProviderError] = useState<string | null>(null);
+
+  if (providerError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="text-center">
+          <h2 className="text-xl font-bold text-red-600 mb-2">Data Provider Error</h2>
+          <p className="text-muted-foreground mb-4">{providerError}</p>
+          <button 
+            onClick={() => setProviderError(null)}
+            className="px-4 py-2 bg-primary text-white rounded hover:bg-primary/90"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // Helper to update state safely - DEFINED FIRST
   const updateState = useCallback((updates: Partial<DataState>) => {
     setState(prev => ({ ...prev, ...updates }));
@@ -210,6 +254,126 @@ export function DataProvider({ children }: { children: ReactNode }) {
       if (dashboardResponse.ok) {
         const { data: dashboardData } = await dashboardResponse.json();
         
+        // Reconstruct pillar data with evidence
+        const reconstructedPillarData: any = {};
+        
+        // First, copy existing pillar data
+        if (dashboardData.pillarData) {
+          Object.keys(dashboardData.pillarData).forEach(pillarKey => {
+            reconstructedPillarData[pillarKey] = {
+              ...dashboardData.pillarData[pillarKey],
+              evidence: {}
+            };
+          });
+        }
+        
+        // Then, add evidence from indicators
+        if (dashboardData.indicators) {
+          dashboardData.indicators.forEach((indicator: any) => {
+            const pillarKey = `pillar_${indicator.pillarId}`;
+            
+            // Ensure pillar exists
+            if (!reconstructedPillarData[pillarKey]) {
+              reconstructedPillarData[pillarKey] = {
+                indicators: {},
+                evidence: {}
+              };
+            }
+            
+            // Add indicator data
+            if (indicator.rawValue !== null && indicator.rawValue !== undefined) {
+              if (!reconstructedPillarData[pillarKey].indicators) {
+                reconstructedPillarData[pillarKey].indicators = {};
+              }
+              reconstructedPillarData[pillarKey].indicators[indicator.indicatorId] = indicator.rawValue;
+            }
+            
+            // Add evidence data - combine multiple rows if present
+            if (indicator.evidence && indicator.evidence.length > 0) {
+              const frontendEvidence: any = {};
+              indicator.evidence.forEach((ev: any) => {
+                if (ev.type === 'FILE' && (ev.fileName || ev.url)) {
+                  frontendEvidence.file = {
+                    fileName: ev.fileName || '',
+                    fileSize: ev.fileSize || null,
+                    fileType: ev.fileType || null,
+                    url: ev.url || '',
+                    description: ev.description || ''
+                  };
+                } else if (ev.type === 'LINK' && ev.url) {
+                  frontendEvidence.link = {
+                    url: ev.url || '',
+                    description: ev.description || ''
+                  };
+                } else if (ev.type === 'LINK' && ev.description && !ev.url) {
+                  frontendEvidence.text = {
+                    description: ev.description || ''
+                  };
+                }
+              });
+
+              reconstructedPillarData[pillarKey].evidence[indicator.indicatorId] = frontendEvidence;
+              console.log(`Loaded evidence for indicator ${indicator.indicatorId}:`, reconstructedPillarData[pillarKey].evidence[indicator.indicatorId]);
+            }
+          });
+        }
+        
+        console.log('Reconstructed pillar data with evidence:', reconstructedPillarData);
+
+        // Always enrich/override evidence from application GET to ensure persisted state
+        let globalEvidence = reconstructEvidenceData(dashboardData.indicators || []);
+        if (dashboardData?.application?.id) {
+          try {
+            const appRes = await fetch(`/api/applications/${dashboardData.application.id}`);
+            if (appRes.ok) {
+              const { data: appData } = await appRes.json();
+              const dbEvidence = reconstructEvidenceData(appData?.indicatorResponses || []);
+              // Override dashboard-derived evidence with DB-derived evidence
+              globalEvidence = { ...globalEvidence, ...dbEvidence };
+
+              // Also override pillar evidence with DB-derived evidence for ticks
+              const dbIndicators = appData?.indicatorResponses || [];
+              dbIndicators.forEach((indicator: any) => {
+                const pillarKey = `pillar_${indicator.pillarId}`;
+                if (!reconstructedPillarData[pillarKey]) {
+                  reconstructedPillarData[pillarKey] = { indicators: {}, evidence: {} };
+                }
+                const frontendEvidence: any = {};
+                (indicator.evidence || []).forEach((ev: any) => {
+                  if (ev.type === 'FILE' && (ev.fileName || ev.url)) {
+                    frontendEvidence.file = {
+                      fileName: ev.fileName || '',
+                      fileSize: ev.fileSize || null,
+                      fileType: ev.fileType || null,
+                      url: ev.url || '',
+                      description: ev.description || '',
+                      _persisted: true
+                    };
+                  } else if (ev.type === 'LINK' && ev.url) {
+                    frontendEvidence.link = {
+                      url: ev.url || '',
+                      description: ev.description || '',
+                      _persisted: true
+                    };
+                  } else if (ev.type === 'LINK' && ev.description && !ev.url) {
+                    frontendEvidence.text = {
+                      description: ev.description || '',
+                      _persisted: true
+                    };
+                  }
+                });
+                if (Object.keys(frontendEvidence).length > 0) {
+                  reconstructedPillarData[pillarKey].evidence[indicator.indicatorId] = frontendEvidence;
+                }
+              });
+
+              console.log('Evidence enriched from application GET');
+            }
+          } catch (e) {
+            console.warn('Failed to enrich evidence from application GET:', e);
+          }
+        }
+
         const applicationData: ApplicationData = {
           id: dashboardData.application.id,
           institutionData: dashboardData.institutionData || {
@@ -219,8 +383,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
             country: "",
             contactEmail: "",
           },
-          pillarData: dashboardData.pillarData || {},
-          evidence: reconstructEvidenceData(dashboardData.indicators),
+          pillarData: reconstructedPillarData,
+          evidence: globalEvidence,
           scores: dashboardData.scores,
           status: dashboardData.application.status?.toLowerCase() || "draft",
           submittedAt: dashboardData.application.submittedAt,
@@ -354,13 +518,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    let timeoutId: NodeJS.Timeout | undefined;
-    
     try {
       updateState({ isSaving: true, error: null });
-
-      const controller = new AbortController();
-      timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
 
       // Prepare indicator responses for database
       const indicatorResponses: Array<{
@@ -377,14 +536,28 @@ export function DataProvider({ children }: { children: ReactNode }) {
         console.log('Pillar data structure:', state.currentApplication.pillarData);
         Object.entries(state.currentApplication.pillarData).forEach(([pillarKey, pillarData]) => {
           const pillarId = parseInt(pillarKey.replace('pillar_', ''));
+          
+          // Skip invalid pillar IDs
+          if (!pillarId || isNaN(pillarId)) {
+            console.log(`Skipping invalid pillar key:`, pillarKey);
+            return;
+          }
+          
           console.log(`Processing pillar ${pillarId}:`, pillarData);
-          if (pillarData && typeof pillarData === 'object' && (pillarData as any).indicators) {
-            Object.entries((pillarData as any).indicators).forEach(([indicatorId, value]) => {
+          console.log(`Pillar ${pillarId} evidence:`, (pillarData as any).evidence);
+          if (pillarData && typeof pillarData === 'object') {
+            const indicatorsMap = (pillarData as any).indicators || {};
+            Object.entries(indicatorsMap).forEach(([indicatorId, value]) => {
+              // Skip invalid indicator IDs
+              if (!indicatorId || indicatorId === 'undefined' || indicatorId === 'null') {
+                console.log(`Skipping invalid indicator ID:`, indicatorId);
+                return;
+              }
+
+              // Calculate normalized score based on measurement unit if value exists
+              let normalizedScore = 0;
+              const measurementUnit = getIndicatorMeasurementUnit(indicatorId);
               if (value !== undefined && value !== null && value !== "") {
-                // Calculate normalized score based on measurement unit
-                let normalizedScore = 0;
-                const measurementUnit = getIndicatorMeasurementUnit(indicatorId);
-                
                 if (measurementUnit.includes("Score")) {
                   const maxScore = getIndicatorMaxScore(indicatorId);
                   normalizedScore = Math.min(((value as number) / maxScore) * 100, 100);
@@ -394,34 +567,73 @@ export function DataProvider({ children }: { children: ReactNode }) {
                   // Normalize based on example (200 ideas = 100%)
                   normalizedScore = Math.min(((value as number) / 200) * 100, 100);
                 }
-
-                // Check if evidence exists for this indicator
-                // First check pillar-specific evidence (from pillar form)
-                const pillarEvidence = (pillarData as any).evidence?.[indicatorId];
-                // Then check global evidence (from updateEvidence function)
-                const evidenceKey = `${pillarId}_${indicatorId}`;
-                const globalEvidence = state.currentApplication?.evidence?.[evidenceKey];
-                
-                // Use pillar evidence if available, otherwise use global evidence
-                const evidenceData = pillarEvidence || globalEvidence;
-                const hasEvidence = !!(evidenceData && (evidenceData.description || evidenceData.url || evidenceData.fileName));
-
-                if (hasEvidence) {
-                  console.log(`Evidence found for indicator ${indicatorId}:`, evidenceData);
-                } else {
-                  console.log(`No evidence found for indicator ${indicatorId}. Pillar evidence:`, pillarEvidence, 'Global evidence:', globalEvidence);
-                }
-
-                indicatorResponses.push({
-                  indicatorId,
-                  pillarId,
-                  rawValue: value,
-                  normalizedScore,
-                  measurementUnit,
-                  hasEvidence: hasEvidence,
-                  evidence: evidenceData // Include evidence data
-                });
               }
+
+              // Resolve evidence for this indicator
+              const pillarEvidence = (pillarData as any).evidence?.[indicatorId];
+              const evidenceKey = `${pillarId}_${indicatorId}`;
+              const globalEvidence = state.currentApplication?.evidence?.[evidenceKey];
+              const evidenceData = pillarEvidence || globalEvidence;
+
+              // Check for evidence content
+              const hasEvidence = !!(evidenceData && (
+                (evidenceData.text?.description && evidenceData.text.description.trim() !== '') ||
+                (evidenceData.link?.url && evidenceData.link.url.trim() !== '') ||
+                (evidenceData.file?.fileName && evidenceData.file.fileName.trim() !== '') ||
+                // Fallback for old format
+                (evidenceData.description && evidenceData.description.trim() !== '') || 
+                (evidenceData.url && evidenceData.url.trim() !== '') || 
+                (evidenceData.fileName && evidenceData.fileName.trim() !== '')
+              ));
+
+              // If neither value nor evidence, skip this indicator
+              if (!hasEvidence && (value === undefined || value === null || value === "")) {
+                return;
+              }
+
+              const evidenceToSave = evidenceData || null;
+              if (evidenceToSave) {
+                console.log(`Evidence to save for indicator ${indicatorId}:`, evidenceToSave);
+              }
+
+              indicatorResponses.push({
+                indicatorId,
+                pillarId,
+                rawValue: (value !== undefined && value !== null && value !== "") ? value : null,
+                normalizedScore,
+                measurementUnit,
+                hasEvidence: hasEvidence,
+                evidence: evidenceToSave
+              });
+            });
+
+            // Also include indicators that exist only in evidence map (no value entered)
+            const pillarEvidenceMap = (pillarData as any).evidence || {};
+            Object.keys(pillarEvidenceMap).forEach((indicatorId) => {
+              if ((indicatorId in indicatorsMap) === true) return;
+              if (!indicatorId || indicatorId === 'undefined' || indicatorId === 'null') return;
+
+              const evidenceData = pillarEvidenceMap[indicatorId];
+              const hasEvidence = !!(evidenceData && (
+                (evidenceData.text?.description && evidenceData.text.description.trim() !== '') ||
+                (evidenceData.link?.url && evidenceData.link.url.trim() !== '') ||
+                (evidenceData.file?.fileName && evidenceData.file.fileName.trim() !== '') ||
+                (evidenceData.description && evidenceData.description.trim() !== '') || 
+                (evidenceData.url && evidenceData.url.trim() !== '') || 
+                (evidenceData.fileName && evidenceData.fileName.trim() !== '')
+              ));
+              if (!hasEvidence) return;
+
+              const measurementUnit = getIndicatorMeasurementUnit(indicatorId);
+              indicatorResponses.push({
+                indicatorId,
+                pillarId,
+                rawValue: null,
+                normalizedScore: 0,
+                measurementUnit,
+                hasEvidence: true,
+                evidence: evidenceData
+              });
             });
           }
         });
@@ -438,11 +650,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
           pillarData: state.currentApplication.pillarData,
           indicatorResponses,
           scores
-        }),
-        signal: controller.signal,
+        })
       });
 
-      clearTimeout(timeoutId);
 
       if (response.ok) {
         const now = new Date();
@@ -450,7 +660,120 @@ export function DataProvider({ children }: { children: ReactNode }) {
           isSaving: false,
           lastSaveTime: now 
         });
-        
+
+        // Optimistic: immediately mark saved evidence as persisted so UI ticks appear
+        try {
+          const nextApp = { ...state.currentApplication } as any
+          const nextPillarData = { ...nextApp.pillarData }
+          const nextGlobalEvidence = { ...(nextApp.evidence || {}) }
+
+          indicatorResponses.forEach((resp) => {
+            const { pillarId, indicatorId, evidence } = resp as any
+            if (!pillarId || !indicatorId || !evidence) return
+            const pillarKey = `pillar_${pillarId}`
+            const evidenceKey = `${pillarId}_${indicatorId}`
+
+            // Build optimistic persisted evidence
+            const fev: any = {}
+            if (evidence.text?.description && evidence.text.description.trim() !== '') {
+              fev.text = { description: evidence.text.description, _persisted: true }
+            }
+            if (evidence.link?.url && evidence.link.url.trim() !== '') {
+              fev.link = { url: evidence.link.url, description: evidence.link.description || '', _persisted: true }
+            }
+            if (evidence.file?.fileName) {
+              fev.file = {
+                fileName: evidence.file.fileName,
+                fileSize: evidence.file.fileSize || null,
+                fileType: evidence.file.fileType || null,
+                url: evidence.file.url || '',
+                description: evidence.file.description || '',
+                _persisted: true,
+              }
+            }
+
+            // Write into pillar structure
+            if (!nextPillarData[pillarKey]) nextPillarData[pillarKey] = { indicators: {}, evidence: {} }
+            const pe = nextPillarData[pillarKey].evidence || {}
+            nextPillarData[pillarKey] = {
+              ...(nextPillarData[pillarKey] || {}),
+              evidence: {
+                ...pe,
+                [indicatorId]: { ...(pe[indicatorId] || {}), ...fev },
+              },
+            }
+
+            // Write into global evidence map
+            nextGlobalEvidence[evidenceKey] = { ...(nextGlobalEvidence[evidenceKey] || {}), ...fev }
+          })
+
+          updateState({
+            currentApplication: {
+              ...state.currentApplication!,
+              pillarData: nextPillarData,
+              evidence: nextGlobalEvidence,
+            },
+          })
+        } catch {}
+
+        // After save, refresh persisted evidence from backend so UI ticks reflect DB
+        try {
+          const appId = state.currentApplication.id;
+          const refreshRes = await fetch(`/api/applications/${appId}`);
+          if (refreshRes.ok) {
+            const { data: appData } = await refreshRes.json();
+            const refreshedEvidence = reconstructEvidenceData(appData?.indicatorResponses || []);
+
+            // Rebuild pillar evidence from appData.indicatorResponses if present
+            const reconstructedPillarData: any = { ...state.currentApplication.pillarData };
+            if (appData?.indicatorResponses) {
+              appData.indicatorResponses.forEach((indicator: any) => {
+                const pillarKey = `pillar_${indicator.pillarId}`;
+                if (!reconstructedPillarData[pillarKey]) {
+                  reconstructedPillarData[pillarKey] = { indicators: {}, evidence: {} };
+                }
+                const frontendEvidence: any = {};
+                (indicator.evidence || []).forEach((ev: any) => {
+                  if (ev.type === 'FILE' && (ev.fileName || ev.url)) {
+                    frontendEvidence.file = {
+                      fileName: ev.fileName || '',
+                      fileSize: ev.fileSize || null,
+                      fileType: ev.fileType || null,
+                      url: ev.url || '',
+                      description: ev.description || '',
+                      _persisted: true
+                    };
+                  } else if (ev.type === 'LINK' && ev.url) {
+                    frontendEvidence.link = {
+                      url: ev.url || '',
+                      description: ev.description || '',
+                      _persisted: true
+                    };
+                  } else if (ev.type === 'LINK' && ev.description && !ev.url) {
+                    frontendEvidence.text = {
+                      description: ev.description || '',
+                      _persisted: true
+                    };
+                  }
+                });
+                if (Object.keys(frontendEvidence).length > 0) {
+                  reconstructedPillarData[pillarKey].evidence[indicator.indicatorId] = frontendEvidence;
+                }
+              });
+            }
+
+            updateState({
+              currentApplication: {
+                ...state.currentApplication,
+                pillarData: reconstructedPillarData,
+                evidence: refreshedEvidence,
+              }
+            });
+          }
+        } catch (e) {
+          // ignore refresh errors
+        }
+
         // Only show toast on manual save or first auto-save
         if (retryCount === 0) {
           toast({
@@ -469,33 +792,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error("Save error:", error);
       
-      // Clear timeout to prevent memory leaks
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-      
       // Handle different types of errors
       if (error instanceof Error) {
-        if (error.name === 'AbortError') {
-          // Request was aborted (timeout or manual abort)
-          if (retryCount < 2) {
-            console.log(`Save aborted, retrying... (attempt ${retryCount + 1})`);
-            setTimeout(() => saveApplication(retryCount + 1), 1000 * (retryCount + 1));
-            return;
-          } else {
-            updateState({ 
-              error: "Save timed out. Please check your connection and try again.",
-              isSaving: false 
-            });
-            
-            toast({
-              title: "Save Timed Out",
-              description: "The save operation took too long. Please check your connection and try again.",
-              variant: "destructive",
-            });
-            return;
-          }
-        } else if (error.message.includes('fetch') || error.message.includes('network')) {
+        if (error.message.includes('fetch') || error.message.includes('network')) {
           // Network-related errors
           if (retryCount < 2) {
             console.log(`Network error, retrying... (attempt ${retryCount + 1})`);
@@ -547,6 +846,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
           } : null,
           isLoading: false
         }));
+
+        // Set a cookie flag so middleware can allow /dashboard immediately
+        try {
+          document.cookie = `iiici_app_submitted=true; path=/; max-age=${60 * 60 * 2}`
+        } catch {}
         
         toast({
           title: "Application Submitted!",
@@ -604,18 +908,39 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   // Update evidence
   const updateEvidence = useCallback((pillarId: string, indicatorId: string, evidence: any) => {
+    console.log(`updateEvidence called - pillarId: ${pillarId}, indicatorId: ${indicatorId}, evidence:`, evidence);
+    
     setState(prevState => {
       if (!prevState.currentApplication) return prevState;
       
+      // Update evidence in both places for consistency
       const evidenceKey = `${pillarId}_${indicatorId}`;
+      // Ensure pillar key is correctly formatted
+      const pillarKey = pillarId.startsWith('pillar') ? pillarId : `pillar${pillarId}`;
+      
+      // Get current pillar data
+      const currentPillarData = prevState.currentApplication.pillarData[pillarKey] || {};
+      
       return {
         ...prevState,
         currentApplication: {
           ...prevState.currentApplication,
+          // Update global evidence storage
           evidence: {
             ...prevState.currentApplication.evidence,
             [evidenceKey]: evidence,
           },
+          // Also update evidence within pillar data for consistency
+          pillarData: {
+            ...prevState.currentApplication.pillarData,
+            [pillarKey]: {
+              ...currentPillarData,
+              evidence: {
+                ...(currentPillarData.evidence || {}),
+                [indicatorId]: evidence
+              }
+            }
+          }
         }
       };
     });
@@ -659,25 +984,44 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   // Load application when session is available - ONLY ONCE
   useEffect(() => {
+    // Only load if we have a user and haven't attempted to load yet
     if (session?.user && !state.currentApplication && !state.isLoading && !hasAttemptedLoad.current) {
       hasAttemptedLoad.current = true;
-      loadApplication();
+      console.log('🔄 Attempting to load application data...');
+      try {
+        loadApplication();
+      } catch (error) {
+        console.error('Error in loadApplication useEffect:', error);
+        setProviderError(error instanceof Error ? error.message : 'Unknown error occurred');
+      }
     }
-  }, [session?.user, state.currentApplication, state.isLoading]);
+  }, [session?.user, state.currentApplication, state.isLoading, loadApplication]);
+
+  // Don't render children until session is ready
+  if (!session) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading session...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <DataContext.Provider
       value={{
-        state,
+    state,
         loadApplication,
         saveApplication,
         submitApplication,
-        updateInstitution,
-        updatePillar,
-        updateEvidence,
+    updateInstitution,
+    updatePillar,
+    updateEvidence,
         clearError,
         startFresh,
-        calculateScores,
+    calculateScores,
       }}
     >
       {children}

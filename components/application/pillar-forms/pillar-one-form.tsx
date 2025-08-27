@@ -57,36 +57,58 @@ export function PillarOneForm({ onDataChange, onScoreChange, initialData }: Pill
   const [formData, setFormData] = useState(initialData?.indicators || {})
   const [evidence, setEvidence] = useState(initialData?.evidence || {})
 
+  // Sync local evidence when context-provided initialData.evidence changes (post-save optimistic/refresh)
+  useEffect(() => {
+    setEvidence(initialData?.evidence || {})
+  }, [initialData?.evidence])
+
   // Calculate completion and score - MEMOIZED
   const stats = useMemo(() => {
-    const responses = Object.keys(formData).length
-    const evidenceCount = Object.keys(evidence).length
     const total = pillarOneIndicators.length
-    
+
+    // Helper: check persisted evidence for an indicator (from DB)
+    const hasPersistedEvidence = (indicatorId: string) => {
+      const ev = (evidence as any)?.[indicatorId]
+      if (!ev) return false
+      return !!(
+        (ev.text?._persisted && ev.text.description && ev.text.description.trim() !== '') ||
+        (ev.link?._persisted && ev.link.url && ev.link.url.trim() !== '') ||
+        (ev.file?._persisted && ev.file.fileName)
+      )
+    }
+
+    // Responses: count only indicators from this pillar with either a filled value or persisted evidence
+    let responses = 0
     let totalScore = 0
     let scoredIndicators = 0
-    
+
     pillarOneIndicators.forEach(indicator => {
-      const value = formData[indicator.id]
-      if (value !== undefined && value !== null && value !== "") {
+      const value = (formData as any)[indicator.id]
+      const hasValue = value !== undefined && value !== null && value !== ''
+      const responded = hasValue || hasPersistedEvidence(indicator.id)
+      if (responded) responses++
+
+      if (hasValue) {
         scoredIndicators++
-        if (indicator.measurementUnit.includes("Score")) {
+        if (indicator.measurementUnit.includes('Score')) {
           const maxScore = indicator.maxScore || 2
           totalScore += (value / maxScore) * 100
-        } else if (indicator.measurementUnit.includes("Percentage")) {
+        } else if (indicator.measurementUnit.includes('Percentage')) {
           totalScore += Math.min(value, 100) // Cap percentage at 100%
         }
       }
     })
-    
-    const averageScore = scoredIndicators > 0 ? Math.min(totalScore / scoredIndicators, 100) : 0 // Cap average at 100%
-    
+
+    responses = Math.min(responses, total)
+    const averageScore = scoredIndicators > 0 ? Math.min(totalScore / scoredIndicators, 100) : 0
+    const completion = Math.min((responses / total) * 100, 100)
+
     return {
       responses,
-      evidenceCount,
+      evidenceCount: Object.keys(evidence || {}).length,
       total,
       averageScore,
-      completion: (responses / total) * 100
+      completion
     }
   }, [formData, evidence])
 
@@ -98,9 +120,10 @@ export function PillarOneForm({ onDataChange, onScoreChange, initialData }: Pill
       stats: stats
     }
     console.log('Pillar form sending combined data:', combinedData);
+    console.log('Evidence object being sent:', evidence);
     onDataChange(combinedData)
     onScoreChange(stats.averageScore)
-  }, [stats.averageScore, stats.completion]) // Only depend on specific numeric values
+  }, [stats.averageScore, stats.completion, evidence]) // Added evidence to dependencies
 
   // Handle input changes
   const handleInputChange = useCallback((indicatorId: string, value: any) => {
@@ -113,10 +136,17 @@ export function PillarOneForm({ onDataChange, onScoreChange, initialData }: Pill
   // Handle evidence changes
   const handleEvidenceChange = useCallback((indicatorId: string, evidenceData: any) => {
     console.log(`Evidence changed for indicator ${indicatorId}:`, evidenceData);
-    setEvidence((prev: any) => ({
-      ...prev,
-      [indicatorId]: evidenceData
-    }))
+    // Use setTimeout to defer the state update and avoid render conflicts
+    setTimeout(() => {
+      setEvidence((prev: any) => {
+        const newEvidence = {
+          ...prev,
+          [indicatorId]: evidenceData
+        }
+        console.log('Updated evidence state:', newEvidence);
+        return newEvidence;
+      })
+    }, 0);
   }, [])
 
   return (
@@ -156,16 +186,18 @@ export function PillarOneForm({ onDataChange, onScoreChange, initialData }: Pill
 
       {/* Indicators */}
       <div className="space-y-4">
-        {pillarOneIndicators.map((indicator) => (
-          <IndicatorInput
-            key={indicator.id}
-            indicator={indicator}
-            value={formData[indicator.id]}
-            onChange={(value) => handleInputChange(indicator.id, value)}
-            onEvidenceChange={(evidenceData) => handleEvidenceChange(indicator.id, evidenceData)}
-            evidence={evidence[indicator.id]}
-          />
-        ))}
+        {pillarOneIndicators.map((indicator) => {
+          return (
+            <IndicatorInput
+              key={indicator.id}
+              indicator={indicator}
+              value={formData[indicator.id]}
+              onChange={(value) => handleInputChange(indicator.id, value)}
+              onEvidenceChange={(evidenceData) => handleEvidenceChange(indicator.id, evidenceData)}
+              evidence={evidence[indicator.id]}
+            />
+          );
+        })}
       </div>
 
       {/* Completion Status */}

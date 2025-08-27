@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useCallback } from "react"
+import { useState, useMemo, useCallback, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
@@ -31,8 +31,32 @@ export function FormWizard() {
   const { state, saveApplication, submitApplication, startFresh, updatePillar } = useData()
   const [currentStep, setCurrentStep] = useState(0)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const STEP_STORAGE_KEY = "iiici.currentStep"
+
+  // Add debugging
+  console.log('FormWizard render - state:', state);
 
   const application = state.currentApplication
+  // Restore last step after application loads
+  useEffect(() => {
+    if (!application) return
+    try {
+      const raw = typeof window !== 'undefined' ? localStorage.getItem(STEP_STORAGE_KEY) : null
+      const stored = raw ? parseInt(raw) : NaN
+      if (Number.isInteger(stored) && stored >= 0 && stored < formSteps.length) {
+        setCurrentStep(stored)
+      }
+    } catch {}
+  }, [application])
+
+  // Persist step on change
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(STEP_STORAGE_KEY, String(currentStep))
+      }
+    } catch {}
+  }, [currentStep])
 
   // Calculate progress - PRODUCTION OPTIMIZED
   const progress = useMemo(() => {
@@ -203,12 +227,35 @@ export function FormWizard() {
   }, [submitApplication])
 
   // Update form data handler
+  // Auto-save timer ref
+  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   const handleDataChange = useCallback((pillarData: any) => {
     if (currentStep > 0) {
       console.log(`Updating pillar ${currentStep} with data:`, pillarData);
       updatePillar(`pillar_${currentStep}`, pillarData)
+      
+      // Clear existing timer
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+      }
+      
+      // Set new auto-save timer (2 seconds delay)
+      autoSaveTimerRef.current = setTimeout(() => {
+        console.log('Auto-saving after data change...');
+        saveApplication();
+      }, 2000);
     }
-  }, [currentStep, updatePillar])
+  }, [currentStep, updatePillar, saveApplication])
+  
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+      }
+    };
+  }, []);
 
   // Loading state
   if (!application) {

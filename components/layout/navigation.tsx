@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Bell, Settings, LogOut, Home, Menu, X, User } from "lucide-react";
 import Link from "next/link";
-import { useData } from "@/contexts/data-context";
+
 import { useSession, signOut } from "next-auth/react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { NotificationDropdown } from "./notification-dropdown";
@@ -31,11 +31,16 @@ export function Navigation({
   showInstitutionBadge = false,
 }: NavigationProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const { state } = useData();
   const { data: session, status } = useSession();
-
-  const application = state.currentApplication;
-  const institutionData = application?.institutionData;
+  const role = session?.user?.role as string | undefined;
+  const isSuperAdmin = role === 'SUPER_ADMIN';
+  const isAdmin = role === 'ADMIN';
+  // Only show user-side (Dashboard/Application) for regular USERs
+  const canSeeUserSide = role === 'USER';
+  // Dashboard available only after submission
+  const applicationStatus = (session?.user as any)?.applicationStatus as string | undefined;
+  const canSeeDashboard = (applicationStatus || '').toLowerCase() === 'submitted';
+  const isSubmitted = canSeeDashboard;
 
   const getLogo = () => (
     <Link href="/" className="flex items-center space-x-2 hover:opacity-80 transition-opacity cursor-pointer">
@@ -68,16 +73,17 @@ export function Navigation({
             </Link>
             {session ? (
               <div className="flex items-center space-x-2">
-                {application?.status === "submitted" || application?.status === "under_review" || application?.status === "certified" || application?.status === "approved" ? (
-                  <Link href="/dashboard">
-                    <Button size="sm" className="btn-primary">
-                      Go to Dashboard
+                {(isAdmin || isSuperAdmin) && (
+                  <Link href="/admin">
+                    <Button size="sm" variant="secondary">
+                      Admin Dashboard
                     </Button>
                   </Link>
-                ) : (
-                  <Link href="/application">
+                )}
+                {canSeeUserSide && (
+                  <Link href="/dashboard">
                     <Button size="sm" className="btn-primary">
-                      Continue Application
+                      Dashboard
                     </Button>
                   </Link>
                 )}
@@ -111,18 +117,11 @@ export function Navigation({
                       </div>
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
-                    {(application?.status === "submitted" || application?.status === "under_review" || application?.status === "certified" || application?.status === "approved") && (
+                    {canSeeUserSide && (
                       <DropdownMenuItem asChild>
                         <Link href="/dashboard">Dashboard</Link>
                       </DropdownMenuItem>
                     )}
-                    <DropdownMenuItem asChild>
-                      <Link href="/application">
-                        {application?.status === "submitted" || application?.status === "under_review" || application?.status === "certified" || application?.status === "approved"
-                          ? "View Application" 
-                          : "Application"}
-                      </Link>
-                    </DropdownMenuItem>
 
                     {(session.user?.role === 'ADMIN' || session.user?.role === 'SUPER_ADMIN') && (
                       <DropdownMenuItem asChild>
@@ -196,18 +195,11 @@ export function Navigation({
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  {(application?.status === "submitted" || application?.status === "under_review" || application?.status === "certified") && (
+                  {canSeeUserSide && (
                     <DropdownMenuItem asChild>
                       <Link href="/dashboard">Dashboard</Link>
                     </DropdownMenuItem>
                   )}
-                  <DropdownMenuItem asChild>
-                    <Link href="/application">
-                      {application?.status === "submitted" || application?.status === "under_review" || application?.status === "certified" 
-                        ? "View Application" 
-                        : "Application"}
-                    </Link>
-                  </DropdownMenuItem>
 
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
@@ -242,19 +234,11 @@ export function Navigation({
             </Button>
             {session ? (
               <>
-                {application?.status === "submitted" || application?.status === "under_review" || application?.status === "certified" || application?.status === "approved" ? (
-                  <Link href="/dashboard" className="w-full">
-                    <Button className="w-full btn-primary">
-                      Go to Dashboard
-                    </Button>
-                  </Link>
-                ) : (
-                  <Link href="/application" className="w-full">
-                    <Button className="w-full btn-primary">
-                      Continue Application
-                    </Button>
-                  </Link>
-                )}
+                <Link href="/application" className="w-full">
+                  <Button className="w-full btn-primary">
+                    Continue Application
+                  </Button>
+                </Link>
                 <Button
                   variant="ghost"
                   className="justify-start"
@@ -316,24 +300,7 @@ export function Navigation({
           {/* Logo and Title */}
           <div className="flex items-center space-x-4">
             {getLogo()}
-            {showInstitutionBadge && institutionData && (
-              <>
-                <Badge variant="outline">{institutionData.name}</Badge>
-                {application && (
-                  <Badge
-                    variant={
-                      application.status === "submitted"
-                        ? "default"
-                        : "secondary"
-                    }
-                  >
-                    {application.status === "submitted"
-                      ? "Submitted"
-                      : application.status}
-                  </Badge>
-                )}
-              </>
-            )}
+
             {variant === "admin" && (
               <Badge className="bg-destructive">Admin Access</Badge>
             )}

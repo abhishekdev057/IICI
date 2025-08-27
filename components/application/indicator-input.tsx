@@ -9,26 +9,46 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Progress } from "@/components/ui/progress"
-import { Info, Upload, File, Link, CheckCircle, AlertCircle, X } from "lucide-react"
+import { Info, Upload, File, Link, CheckCircle, AlertCircle, X, FileText, Image as ImageIcon, FileSpreadsheet, FileIcon, Plus, Edit3 } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
 
 interface Indicator {
-  id: string
-  shortName: string
-  description: string
-  measurementUnit: string
+    id: string
+    shortName: string
+    description: string
+    measurementUnit: string
   remark?: string
   example?: string
-  evidenceRequired: string
-  maxScore?: number
+    evidenceRequired: string
+    maxScore?: number
+  }
+
+interface EvidenceData {
+  text?: {
+    description: string
+    _persisted?: boolean
+  }
+  link?: {
+    url: string
+    description: string
+    _persisted?: boolean
+  }
+  file?: {
+    fileName: string
+    fileSize: number | null
+    fileType: string | null
+    url: string
+    description: string
+    _persisted?: boolean
+  }
 }
 
 interface IndicatorInputProps {
   indicator: Indicator
   value: any
   onChange: (value: any) => void
-  onEvidenceChange: (evidence: any) => void
-  evidence?: any
+  onEvidenceChange: (evidence: EvidenceData) => void
+  evidence?: EvidenceData
 }
 
 export function IndicatorInput({
@@ -40,18 +60,50 @@ export function IndicatorInput({
 }: IndicatorInputProps) {
   const [showTooltip, setShowTooltip] = useState(false)
   const [localValue, setLocalValue] = useState(value || "")
-  const [localEvidence, setLocalEvidence] = useState(evidence || {
-    type: "text",
-    description: "",
-    url: "",
-    fileName: "",
-    fileSize: null,
-    fileType: null
-  })
+  
+  // Initialize evidence state with all three types
+  const [localEvidence, setLocalEvidence] = useState<EvidenceData>(() => {
+    if (!evidence) {
+      return {};
+    }
+    
+    // Convert from old format to new format if needed
+    const newEvidence: EvidenceData = {};
+    
+    if (evidence.text || (evidence as any).description) {
+      newEvidence.text = {
+        description: evidence.text?.description || (evidence as any).description || "",
+        _persisted: (evidence as any).text?._persisted || (evidence as any)._persisted || false
+      };
+    }
+    
+    if (evidence.link || (evidence as any).url) {
+      newEvidence.link = {
+        url: evidence.link?.url || (evidence as any).url || "",
+        description: evidence.link?.description || "",
+        _persisted: (evidence as any).link?._persisted || (evidence as any)._persisted || false
+      };
+    }
+    
+    if (evidence.file || (evidence as any).fileName) {
+      newEvidence.file = {
+        fileName: evidence.file?.fileName || (evidence as any).fileName || "",
+        fileSize: evidence.file?.fileSize || (evidence as any).fileSize || null,
+        fileType: evidence.file?.fileType || (evidence as any).fileType || null,
+        url: evidence.file?.url || (evidence as any).url || "",
+        description: evidence.file?.description || "",
+        _persisted: (evidence as any).file?._persisted || (evidence as any)._persisted || false
+      };
+    }
+    
+    return newEvidence;
+  });
+
   const [isUploading, setIsUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [isDragOver, setIsDragOver] = useState(false)
+  const [activeEvidenceType, setActiveEvidenceType] = useState<'text' | 'link' | 'file' | null>(null)
   const { toast } = useToast()
 
   // Update local value when prop changes
@@ -62,9 +114,37 @@ export function IndicatorInput({
   // Update local evidence when prop changes
   useEffect(() => {
     if (evidence) {
-      setLocalEvidence(evidence)
+      const newEvidence: EvidenceData = {};
+      
+      if (evidence.text || (evidence as any).description) {
+        newEvidence.text = {
+          description: evidence.text?.description || (evidence as any).description || "",
+          _persisted: (evidence as any).text?._persisted || (evidence as any)._persisted || false
+        };
+      }
+      
+      if (evidence.link || (evidence as any).url) {
+        newEvidence.link = {
+          url: evidence.link?.url || (evidence as any).url || "",
+          description: evidence.link?.description || "",
+          _persisted: (evidence as any).link?._persisted || (evidence as any)._persisted || false
+        };
+      }
+      
+      if (evidence.file || (evidence as any).fileName) {
+        newEvidence.file = {
+          fileName: evidence.file?.fileName || (evidence as any).fileName || "",
+          fileSize: evidence.file?.fileSize || (evidence as any).fileSize || null,
+          fileType: evidence.file?.fileType || (evidence as any).fileType || null,
+          url: evidence.file?.url || (evidence as any).url || "",
+          description: evidence.file?.description || "",
+          _persisted: (evidence as any).file?._persisted || (evidence as any)._persisted || false
+        };
+      }
+      
+      setLocalEvidence(newEvidence);
     }
-  }, [evidence])
+  }, [evidence]);
 
   // Handle value change with debouncing
   const handleValueChange = useCallback((newValue: any) => {
@@ -78,20 +158,62 @@ export function IndicatorInput({
     return () => clearTimeout(timeoutId)
   }, [onChange])
 
-  // Handle evidence change
-  const handleEvidenceChange = useCallback((field: string, value: any) => {
-    const updatedEvidence = {
-      ...localEvidence,
-      [field]: value
+  // Handle evidence change for specific type
+  const handleEvidenceChange = useCallback((type: 'text' | 'link' | 'file', field: string, value: any) => {
+    console.log(`🔄 handleEvidenceChange called - indicator: ${indicator.id}, type: ${type}, field: ${field}, value:`, value);
+    
+    setLocalEvidence(prev => {
+      const updatedEvidence = { ...prev };
+      
+      if (!updatedEvidence[type]) {
+        updatedEvidence[type] = {} as any;
+      }
+      
+      (updatedEvidence[type] as any)[field] = value;
+      
+      console.log('Updated evidence object:', updatedEvidence);
+      
+      // Call the parent callback with the updated evidence
+      console.log('Calling onEvidenceChange with:', updatedEvidence);
+      onEvidenceChange(updatedEvidence);
+      
+      return updatedEvidence;
+    });
+  }, [onEvidenceChange, indicator.id])
+
+  // Remove evidence type
+  const removeEvidenceType = useCallback((type: 'text' | 'link' | 'file') => {
+    console.log(`Removing evidence type: ${type} for indicator: ${indicator.id}`);
+    
+    setLocalEvidence(prev => {
+      const updatedEvidence = { ...prev };
+      delete updatedEvidence[type];
+      
+      console.log('Updated evidence after removal:', updatedEvidence);
+      onEvidenceChange(updatedEvidence);
+      
+      return updatedEvidence;
+    });
+    
+    if (activeEvidenceType === type) {
+      setActiveEvidenceType(null);
     }
-    setLocalEvidence(updatedEvidence)
-    onEvidenceChange(updatedEvidence)
-  }, [localEvidence, onEvidenceChange])
+  }, [onEvidenceChange, indicator.id, activeEvidenceType]);
 
   // Handle file upload with progress tracking
   const handleFileUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
-    if (!file) return
+    if (!file) {
+      console.log('No file selected for indicator:', indicator.id);
+      return;
+    }
+
+    console.log('File selected for indicator', indicator.id, ':', {
+      name: file.name,
+      size: file.size,
+      type: file.type,
+      lastModified: file.lastModified
+    });
 
     // Reset states
     setUploadError(null)
@@ -136,18 +258,26 @@ export function IndicatorInput({
 
     reader.onload = (e) => {
       const result = e.target?.result as string
-      handleEvidenceChange('url', result)
-      handleEvidenceChange('fileName', file.name)
-      handleEvidenceChange('fileSize', file.size)
-      handleEvidenceChange('fileType', file.type)
-      handleEvidenceChange('type', 'file')
-      
+
+      console.log('File upload completed for indicator', indicator.id, ':', {
+        fileName: file.name,
+        fileSize: file.size,
+        fileType: file.type,
+        urlLength: result.length
+      });
+
+      // Update file evidence
+      handleEvidenceChange('file', 'fileName', file.name);
+      handleEvidenceChange('file', 'fileSize', file.size);
+      handleEvidenceChange('file', 'fileType', file.type);
+      handleEvidenceChange('file', 'url', result);
+
       setIsUploading(false)
       setUploadProgress(100)
-      
+
       toast({
         title: "File Uploaded Successfully!",
-        description: `${file.name} has been uploaded as evidence.`,
+        description: `${file.name} has been uploaded as evidence for ${indicator.id}.`,
         variant: "default",
       })
 
@@ -182,10 +312,16 @@ export function IndicatorInput({
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     setIsDragOver(false)
-    
+
     const files = e.dataTransfer.files
     if (files.length > 0) {
       const file = files[0]
+      console.log('File dropped for indicator', indicator.id, ':', {
+        name: file.name,
+        size: file.size,
+        type: file.type
+      });
+
       // Process the file directly
       if (!file) return
 
@@ -232,18 +368,26 @@ export function IndicatorInput({
 
       reader.onload = (e) => {
         const result = e.target?.result as string
-        handleEvidenceChange('url', result)
-        handleEvidenceChange('fileName', file.name)
-        handleEvidenceChange('fileSize', file.size)
-        handleEvidenceChange('fileType', file.type)
-        handleEvidenceChange('type', 'file')
-        
+
+        console.log('File upload completed for indicator', indicator.id, 'via drag-drop:', {
+          fileName: file.name,
+          fileSize: file.size,
+          fileType: file.type,
+          urlLength: result.length
+        });
+
+        // Update file evidence
+        handleEvidenceChange('file', 'fileName', file.name);
+        handleEvidenceChange('file', 'fileSize', file.size);
+        handleEvidenceChange('file', 'fileType', file.type);
+        handleEvidenceChange('file', 'url', result);
+
         setIsUploading(false)
         setUploadProgress(100)
-        
+
         toast({
           title: "File Uploaded Successfully!",
-          description: `${file.name} has been uploaded as evidence.`,
+          description: `${file.name} has been uploaded as evidence for ${indicator.id} via drag & drop.`,
           variant: "default",
         })
 
@@ -296,7 +440,7 @@ export function IndicatorInput({
             </div>
           </div>
         )
-        
+
       case "score":
         const maxScore = indicator.maxScore || 5
         return (
@@ -318,20 +462,20 @@ export function IndicatorInput({
             </Select>
           </div>
         )
-        
+
       case "binary":
         return (
           <div className="space-y-2">
             <Select 
               value={localValue?.toString() || ""} 
-              onValueChange={(value) => handleValueChange(value === "1" ? 1 : 0)}
+              onValueChange={(value) => handleValueChange(value === "true")}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Select option" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="1">Yes</SelectItem>
-                <SelectItem value="0">No</SelectItem>
+                <SelectItem value="true">Yes</SelectItem>
+                <SelectItem value="false">No</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -339,48 +483,82 @@ export function IndicatorInput({
         
       case "number":
         return (
-          <div className="space-y-2">
             <Input
               type="number"
               min="0"
-              max="1000"
-              value={localValue}
-              onChange={(e) => handleValueChange(Number(e.target.value))}
-              placeholder="Enter number (0-1000)"
+            value={localValue}
+            onChange={(e) => handleValueChange(Number(e.target.value))}
+              placeholder="Enter number"
+            className="w-full"
             />
-          </div>
         )
-        
+
       default:
         return (
-          <div className="space-y-2">
-            <Textarea
-              value={localValue}
-              onChange={(e) => handleValueChange(e.target.value)}
-              placeholder="Enter your response..."
-              rows={3}
-            />
-          </div>
+          <Input
+            type="text"
+            value={localValue}
+            onChange={(e) => handleValueChange(e.target.value)}
+            placeholder="Enter value"
+            className="w-full"
+          />
         )
     }
   }
 
-  const hasValue = localValue !== "" && localValue !== undefined && localValue !== null
-  const hasEvidence = localEvidence.description || localEvidence.url || localEvidence.fileName
+  // Helper functions for file display
+  const getFileIcon = (fileName: string) => {
+    const extension = fileName.split('.').pop()?.toLowerCase()
+    
+    switch (extension) {
+      case 'pdf':
+        return <FileText className="h-6 w-6 text-red-500" />
+      case 'doc':
+      case 'docx':
+        return <FileText className="h-6 w-6 text-blue-500" />
+      case 'jpg':
+      case 'jpeg':
+      case 'png':
+        return <ImageIcon className="h-6 w-6 text-green-500" />
+      case 'xls':
+      case 'xlsx':
+        return <FileSpreadsheet className="h-6 w-6 text-green-600" />
+      case 'ppt':
+      case 'pptx':
+        return <FileIcon className="h-6 w-6 text-orange-500" />
+      default:
+        return <File className="h-6 w-6 text-gray-500" />
+    }
+  }
+
+  const formatFileSize = (bytes: number | null) => {
+    if (!bytes) return ''
+    const sizes = ['Bytes', 'KB', 'MB', 'GB']
+    const i = Math.floor(Math.log(bytes) / Math.log(1024))
+    return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i]
+  }
+
+  // Check if evidence exists
+  const hasEvidence = !!(localEvidence && (
+    localEvidence.text?.description ||
+    localEvidence.link?.url ||
+    localEvidence.file?.fileName
+  ))
+
+  // Count evidence types
+  const evidenceCount = [
+    localEvidence.text?.description ? 1 : 0,
+    localEvidence.link?.url ? 1 : 0,
+    localEvidence.file?.fileName ? 1 : 0
+  ].reduce((a, b) => a + b, 0);
 
   return (
-    <Card className={`relative ${hasValue ? 'border-green-200 bg-green-50/30' : 'border-gray-200'}`}>
+    <Card className="w-full">
       <CardHeader className="pb-3">
-        <div className="flex items-start justify-between">
-          <div className="flex-1">
-            <CardTitle className="text-base flex items-center gap-2">
+      <div className="flex items-start justify-between">
+        <div className="flex-1">
+            <CardTitle className="text-lg font-semibold">
               {indicator.shortName}
-              <Badge variant="outline" className="text-xs">
-                {indicator.measurementUnit}
-              </Badge>
-              {hasValue && (
-                <CheckCircle className="h-4 w-4 text-green-600" />
-              )}
             </CardTitle>
             <p className="text-sm text-muted-foreground mt-1">
               {indicator.description}
@@ -395,20 +573,20 @@ export function IndicatorInput({
               onMouseLeave={() => setShowTooltip(false)}
             />
             {showTooltip && (
-              <div className="absolute z-50 right-0 top-6 bg-popover border rounded-md p-3 shadow-md max-w-sm">
-                <div className="space-y-2">
-                  {indicator.remark && (
-                    <>
+              <div className="absolute z-50 right-0 top-6 bg-popover border rounded-md p-3 shadow-md w-80 break-words whitespace-normal">
+                  <div className="space-y-2">
+                    {indicator.remark && (
+                      <>
                       <p className="font-medium text-sm">Note:</p>
                       <p className="text-xs">{indicator.remark}</p>
-                    </>
-                  )}
-                  {indicator.example && (
-                    <>
+                      </>
+                    )}
+                    {indicator.example && (
+                      <>
                       <p className="font-medium text-sm">Example:</p>
                       <p className="text-xs">{indicator.example}</p>
-                    </>
-                  )}
+                      </>
+                    )}
                   <div>
                     <p className="font-medium text-sm">Evidence Required:</p>
                     <p className="text-xs">{indicator.evidenceRequired}</p>
@@ -428,107 +606,200 @@ export function IndicatorInput({
         </div>
 
         {/* Evidence Section */}
-        <div className="space-y-3">
+        <div className="space-y-3" data-evidence-section={`indicator-${indicator.id}`}>
           <div className="flex items-center justify-between">
             <Label className="text-sm font-medium">Supporting Evidence</Label>
             {hasEvidence && (
               <Badge variant="outline" className="text-xs text-green-600">
-                Evidence Provided
+                {evidenceCount} Evidence Type{evidenceCount > 1 ? 's' : ''} Provided
               </Badge>
             )}
-          </div>
+      </div>
+
+
           
           {/* Evidence Type Selection */}
           <div className="grid grid-cols-3 gap-2">
             <Button
               type="button"
-              variant={localEvidence.type === "text" ? "default" : "outline"}
+              variant={activeEvidenceType === "text" ? "default" : "outline"}
               size="sm"
-              onClick={() => handleEvidenceChange('type', 'text')}
+              onClick={() => {
+                console.log('Text button clicked for indicator:', indicator.id);
+                setActiveEvidenceType(activeEvidenceType === 'text' ? null : 'text');
+              }}
               className="flex items-center gap-1"
             >
               <File className="h-3 w-3" />
               Text
+              {localEvidence.text?._persisted && <CheckCircle className="h-3 w-3 text-green-600" />}
             </Button>
             <Button
               type="button"
-              variant={localEvidence.type === "link" ? "default" : "outline"}
+              variant={activeEvidenceType === "link" ? "default" : "outline"}
               size="sm"
-              onClick={() => handleEvidenceChange('type', 'link')}
+              onClick={() => {
+                console.log('Link button clicked for indicator:', indicator.id);
+                setActiveEvidenceType(activeEvidenceType === 'link' ? null : 'link');
+              }}
               className="flex items-center gap-1"
             >
               <Link className="h-3 w-3" />
               Link
+              {localEvidence.link?._persisted && <CheckCircle className="h-3 w-3 text-green-600" />}
             </Button>
             <Button
               type="button"
-              variant={localEvidence.type === "file" ? "default" : "outline"}
+              variant={activeEvidenceType === "file" ? "default" : "outline"}
               size="sm"
               onClick={() => {
-                handleEvidenceChange('type', 'file');
-                // Trigger file input click after a short delay to ensure type is set
-                setTimeout(() => {
-                  document.getElementById(`file-${indicator.id}`)?.click();
-                }, 100);
+                console.log('File button clicked for indicator:', indicator.id);
+                setActiveEvidenceType(activeEvidenceType === 'file' ? null : 'file');
               }}
               className="flex items-center gap-1"
             >
               <Upload className="h-3 w-3" />
               File
+              {localEvidence.file?._persisted && <CheckCircle className="h-3 w-3 text-green-600" />}
             </Button>
           </div>
 
-          {/* Evidence Input Based on Type */}
-          {localEvidence.type === "text" && (
-            <Textarea
-              value={localEvidence.description || ""}
-              onChange={(e) => handleEvidenceChange('description', e.target.value)}
-              placeholder="Describe your evidence..."
-              rows={2}
-            />
-          )}
+          {/* Always render file input (hidden) for reliability */}
+          <input
+            id={`file-${indicator.id}`}
+            type="file"
+            onChange={handleFileUpload}
+            className="hidden"
+            accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip"
+            disabled={isUploading}
+            onClick={(e) => {
+              // Clear the value so the same file can be selected again
+              (e.target as HTMLInputElement).value = '';
+              console.log('File input clicked for indicator:', indicator.id);
+            }}
+          />
 
-          {localEvidence.type === "link" && (
-            <div className="space-y-2">
-              <Input
-                value={localEvidence.url || ""}
-                onChange={(e) => handleEvidenceChange('url', e.target.value)}
-                placeholder="https://example.com/evidence"
-              />
+          {/* Evidence Input Based on Active Type */}
+          {activeEvidenceType === "text" && (
+            <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+              <div className="flex items-center justify-between mb-3">
+                <Label className="text-sm font-medium">Text Evidence</Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => removeEvidenceType('text')}
+                  className="h-6 w-6 p-0 text-red-600 hover:text-red-700"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
               <Textarea
-                value={localEvidence.description || ""}
-                onChange={(e) => handleEvidenceChange('description', e.target.value)}
-                placeholder="Brief description of the link..."
-                rows={2}
+                value={localEvidence.text?.description || ""}
+                onChange={(e) => handleEvidenceChange('text', 'description', e.target.value)}
+                placeholder="Describe your evidence..."
+                rows={3}
+                className="w-full"
               />
             </div>
           )}
 
-          {localEvidence.type === "file" && (
-            <div className="space-y-2">
-              <input
-                id={`file-${indicator.id}`}
-                type="file"
-                onChange={handleFileUpload}
-                className="hidden"
-                accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip"
-                disabled={isUploading}
-              />
+          {activeEvidenceType === "link" && (
+            <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+              <div className="flex items-center justify-between mb-3">
+                <Label className="text-sm font-medium">Link Evidence</Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => removeEvidenceType('link')}
+                  className="h-6 w-6 p-0 text-red-600 hover:text-red-700"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+              <div className="space-y-3">
+                <div>
+                  <Label className="text-xs font-medium text-gray-700 mb-1">Evidence URL</Label>
+                  <Input
+                    value={localEvidence.link?.url || ""}
+                    onChange={(e) => handleEvidenceChange('link', 'url', e.target.value)}
+                    placeholder="https://example.com/evidence"
+                    className="w-full"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs font-medium text-gray-700 mb-1">Description</Label>
+                  <Textarea
+                    value={localEvidence.link?.description || ""}
+                    onChange={(e) => handleEvidenceChange('link', 'description', e.target.value)}
+                    placeholder="Brief description of the link..."
+                    rows={2}
+                    className="w-full"
+                  />
+                </div>
+                {localEvidence.link?.url && (
+                  <div className="flex items-center gap-2 p-2 bg-blue-50 border border-blue-200 rounded">
+                    <Link className="h-4 w-4 text-blue-600" />
+                    <a 
+                      href={localEvidence.link.url} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-sm text-blue-600 hover:underline truncate flex-1"
+                    >
+                      {localEvidence.link.url}
+                    </a>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {activeEvidenceType === "file" && (
+            <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+              <div className="flex items-center justify-between mb-3">
+                <Label className="text-sm font-medium">File Evidence</Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => removeEvidenceType('file')}
+                  className="h-6 w-6 p-0 text-red-600 hover:text-red-700"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
               
               {/* Upload Progress */}
               {isUploading && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span>Uploading file...</span>
-                    <span>{uploadProgress}%</span>
+                <div className="mb-3 flex items-center gap-3">
+                  <div className="relative h-10 w-10">
+                    <svg viewBox="0 0 36 36" className="h-10 w-10">
+                      <circle cx="18" cy="18" r="16" fill="none" stroke="#e5e7eb" strokeWidth="4" />
+                      <circle
+                        cx="18"
+                        cy="18"
+                        r="16"
+                        fill="none"
+                        stroke="#3b82f6"
+                        strokeWidth="4"
+                        strokeLinecap="round"
+                        pathLength="100"
+                        strokeDasharray={`${uploadProgress} ${100 - uploadProgress}`}
+                        transform="rotate(-90 18 18)"
+                      />
+                      <text x="18" y="20.5" textAnchor="middle" className="fill-current text-[9px]" fill="#111827">
+                        {uploadProgress}%
+                      </text>
+                    </svg>
                   </div>
-                  <Progress value={uploadProgress} className="h-2" />
+                  <div className="text-sm text-muted-foreground">Uploading file...</div>
                 </div>
               )}
 
               {/* Upload Error */}
               {uploadError && (
-                <div className="flex items-center gap-2 p-2 bg-destructive/10 border border-destructive/20 rounded text-destructive text-sm">
+                <div className="flex items-center gap-2 p-2 bg-destructive/10 border border-destructive/20 rounded text-destructive text-sm mb-3">
                   <AlertCircle className="h-4 w-4" />
                   <span>{uploadError}</span>
                   <Button
@@ -543,22 +814,21 @@ export function IndicatorInput({
                 </div>
               )}
 
-              {/* File Preview and Display */}
-              {localEvidence.fileName && !isUploading && (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 p-3 bg-muted/50 border rounded-lg">
-                    <div className="flex-shrink-0">
-                      <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
-                        <File className="h-5 w-5 text-primary" />
-                      </div>
+              {/* Enhanced File Preview */}
+              {localEvidence.file?.fileName && !isUploading && (
+                <div className="border border-gray-200 rounded-lg p-3 bg-white mb-3">
+                  <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0 p-2 bg-gray-50 rounded-lg border border-gray-200">
+                      {getFileIcon(localEvidence.file.fileName)}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{localEvidence.fileName}</p>
-                      {localEvidence.fileSize && (
-                        <p className="text-xs text-muted-foreground">
-                          {(localEvidence.fileSize / 1024 / 1024).toFixed(2)} MB
-                        </p>
-                      )}
+                      <p className="text-sm font-medium text-gray-900 truncate">
+                        {localEvidence.file.fileName}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {formatFileSize(localEvidence.file.fileSize)}
+                        {localEvidence.file.fileType && ` • ${localEvidence.file.fileType}`}
+                      </p>
                     </div>
                     <div className="flex items-center gap-1">
                       <Button
@@ -566,37 +836,36 @@ export function IndicatorInput({
                         variant="outline"
                         size="sm"
                         onClick={() => {
-                          handleEvidenceChange('fileName', '')
-                          handleEvidenceChange('url', '')
-                          handleEvidenceChange('fileSize', null)
-                          handleEvidenceChange('fileType', null)
-                          handleEvidenceChange('type', 'text')
-                          setUploadError(null)
+                          // Open file selector to replace
+                          const fileInput = document.getElementById(`file-${indicator.id}`) as HTMLInputElement;
+                          if (fileInput) {
+                            fileInput.click();
+                          }
                         }}
-                        className="h-8 px-2"
+                        className="h-8 text-xs"
                       >
-                        <X className="h-3 w-3" />
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          document.getElementById(`file-${indicator.id}`)?.click()
-                        }}
-                        className="h-8 px-2"
-                      >
-                        Change
+                        Replace
                       </Button>
                     </div>
                   </div>
+                  
+                  {/* Image Preview for image files */}
+                  {localEvidence.file.url && localEvidence.file.fileType?.startsWith('image/') && (
+                    <div className="mt-3 border border-gray-200 rounded-lg overflow-hidden">
+                      <img 
+                        src={localEvidence.file.url} 
+                        alt={localEvidence.file.fileName}
+                        className="max-h-48 w-auto mx-auto"
+                      />
+                    </div>
+                  )}
                 </div>
               )}
 
-              {/* File Upload Area (when no file is present) */}
-              {!localEvidence.fileName && !isUploading && (
+              {/* Simple Upload Area (when no file is present) */}
+              {!localEvidence.file?.fileName && !isUploading && (
                 <div 
-                  className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+                  className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors mb-3 ${
                     isDragOver 
                       ? 'border-primary bg-primary/5' 
                       : 'border-muted-foreground/25 hover:border-muted-foreground/50'
@@ -605,16 +874,25 @@ export function IndicatorInput({
                   onDragLeave={handleDragLeave}
                   onDrop={handleDrop}
                 >
-                  <Upload className={`h-8 w-8 mx-auto mb-2 ${isDragOver ? 'text-primary' : 'text-muted-foreground'}`} />
+                  <Upload className={`h-6 w-6 mx-auto mb-2 ${isDragOver ? 'text-primary' : 'text-muted-foreground'}`} />
                   <p className="text-sm text-muted-foreground mb-2">
-                    {isDragOver ? 'Drop your file here' : 'Click to upload a file or drag and drop'}
+                    {isDragOver ? 'Drop your file here' : 'Upload a file or drag and drop'}
                   </p>
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
                     onClick={() => {
-                      document.getElementById(`file-${indicator.id}`)?.click()
+                      const fileInputId = `file-${indicator.id}`;
+                      const fileInput = document.getElementById(fileInputId) as HTMLInputElement;
+                      console.log('Choose File clicked - Looking for file input with ID:', fileInputId);
+                      console.log('File input element:', fileInput);
+                      if (fileInput) {
+                        fileInput.click();
+                      } else {
+                        console.error('File input not found for indicator:', indicator.id);
+                        console.error('Available elements with file- prefix:', Array.from(document.querySelectorAll('[id^="file-"]')).map(el => el.id));
+                      }
                     }}
                   >
                     Choose File
@@ -623,20 +901,106 @@ export function IndicatorInput({
               )}
 
               {/* File Type Info */}
-              <div className="text-xs text-muted-foreground">
+              <div className="text-xs text-muted-foreground mb-3">
                 Supported formats: PDF, DOC, DOCX, JPG, PNG, XLS, XLSX, PPT, PPTX, TXT, CSV, ZIP (max 10MB)
-              </div>
+                </div>
 
               <Textarea
-                value={localEvidence.description || ""}
-                onChange={(e) => handleEvidenceChange('description', e.target.value)}
+                value={localEvidence.file?.description || ""}
+                onChange={(e) => handleEvidenceChange('file', 'description', e.target.value)}
                 placeholder="Brief description of the file..."
                 rows={2}
               />
             </div>
           )}
-        </div>
-      </CardContent>
-    </Card>
+
+          {/* Show existing evidence when no type is active */}
+          {!activeEvidenceType && hasEvidence && (
+            <div className="space-y-3">
+              {localEvidence.text?.description && (
+                <div className="border border-gray-200 rounded-lg p-3 bg-green-50">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <File className="h-4 w-4 text-green-600" />
+                      <span className="text-sm font-medium text-green-700">Text Evidence</span>
+                      </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setActiveEvidenceType('text')}
+                      className="h-6 w-6 p-0"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <p className="text-sm text-green-800">{localEvidence.text.description}</p>
+                  </div>
+                )}
+
+              {localEvidence.link?.url && (
+                <div className="border border-gray-200 rounded-lg p-3 bg-blue-50">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <Link className="h-4 w-4 text-blue-600" />
+                      <span className="text-sm font-medium text-blue-700">Link Evidence</span>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setActiveEvidenceType('link')}
+                      className="h-6 w-6 p-0"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <a 
+                      href={localEvidence.link.url} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-sm text-blue-600 hover:underline truncate flex-1"
+                    >
+                      {localEvidence.link.url}
+                        </a>
+                      </div>
+                  {localEvidence.link.description && (
+                    <p className="text-sm text-blue-800 mt-1">{localEvidence.link.description}</p>
+                  )}
+                </div>
+              )}
+              
+              {localEvidence.file?.fileName && (
+                <div className="border border-gray-200 rounded-lg p-3 bg-purple-50">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <Upload className="h-4 w-4 text-purple-600" />
+                      <span className="text-sm font-medium text-purple-700">File Evidence</span>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setActiveEvidenceType('file')}
+                      className="h-6 w-6 p-0"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {getFileIcon(localEvidence.file.fileName)}
+                    <span className="text-sm font-medium">{localEvidence.file.fileName}</span>
+                  </div>
+                  {localEvidence.file.description && (
+                    <p className="text-sm text-purple-800 mt-1">{localEvidence.file.description}</p>
+                  )}
+                </div>
+              )}
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
   )
 }

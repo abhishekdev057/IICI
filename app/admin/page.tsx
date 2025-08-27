@@ -10,6 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Shield, Users, Award, FileText, Crown, AlertCircle, CheckCircle, Clock } from "lucide-react";
 import { toast } from "sonner";
+import { SubmissionsOverview } from "@/components/admin/submissions-overview";
+import { AuditReports } from "@/components/admin/audit-reports";
 
 interface User {
   id: string;
@@ -37,12 +39,6 @@ export default function AdminDashboard() {
 
     if (!session) {
       router.push("/auth");
-      return;
-    }
-
-    // Check if user is super admin
-    if (session.user.role !== "SUPER_ADMIN") {
-      router.push("/dashboard");
       return;
     }
 
@@ -118,7 +114,7 @@ export default function AdminDashboard() {
     );
   }
 
-  if (!session || session.user.role !== "SUPER_ADMIN") {
+  if (!session || (session.user.role !== "SUPER_ADMIN" && session.user.role !== "ADMIN")) {
     return null;
   }
 
@@ -139,13 +135,20 @@ export default function AdminDashboard() {
           <div>
             <h1 className="text-3xl font-bold">Admin Dashboard</h1>
             <p className="text-muted-foreground">
-              Welcome back, {session.user.name} (Super Admin)
+              Welcome back, {session.user.name} ({session.user.role === 'SUPER_ADMIN' ? 'Super Admin' : 'Admin'})
             </p>
           </div>
-          <Badge className="bg-purple-500">
-            <Crown className="w-4 h-4 mr-1" />
-            Super Admin
-          </Badge>
+          {session.user.role === 'SUPER_ADMIN' ? (
+            <Badge className="bg-purple-500">
+              <Crown className="w-4 h-4 mr-1" />
+              Super Admin
+            </Badge>
+          ) : (
+            <Badge className="bg-blue-500">
+              <Shield className="w-4 h-4 mr-1" />
+              Admin
+            </Badge>
+          )}
         </div>
 
         {/* Stats Cards */}
@@ -191,78 +194,86 @@ export default function AdminDashboard() {
           </Card>
         </div>
 
-        {/* Users Table */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <Users className="w-5 h-5 mr-2" />
-              User Management
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>User</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Applications</TableHead>
-                  <TableHead>Certifications</TableHead>
-                  <TableHead>Joined</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {users.map((user) => (
-                  <TableRow key={user.id}>
-                    <TableCell>
-                      <div>
-                        <div className="font-medium">{user.name}</div>
-                        <div className="text-sm text-muted-foreground">{user.email}</div>
-                      </div>
-                    </TableCell>
-                    <TableCell>{getRoleBadge(user.role)}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center">
-                        {getStatusIcon(user.isActive)}
-                        <span className="ml-2 text-sm">
-                          {user.isActive ? "Active" : "Inactive"}
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{user._count.applications}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{user._count.certifications}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-sm text-muted-foreground">
-                        {new Date(user.createdAt).toLocaleDateString()}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Select
-                        value={user.role}
-                        onValueChange={(newRole) => updateUserRole(user.id, newRole)}
-                        disabled={updatingRole === user.id}
-                      >
-                        <SelectTrigger className="w-32">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="USER">User</SelectItem>
-                          <SelectItem value="ADMIN">Admin</SelectItem>
-                          <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
+        {/* Submissions Overview */}
+        <SubmissionsOverview onViewSubmission={(id) => router.push(`/admin/submissions/${id}`)} />
+
+        {/* Audit Reports */}
+        <AuditReports />
+
+        {/* Users Table (Super Admin only) */}
+        {session.user.role === 'SUPER_ADMIN' && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <Users className="w-5 h-5 mr-2" />
+                User Management
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>User</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Applications</TableHead>
+                    <TableHead>Certifications</TableHead>
+                    <TableHead>Joined</TableHead>
+                    <TableHead>Actions</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+                </TableHeader>
+                <TableBody>
+                  {users.map((user) => (
+                    <TableRow key={user.id}>
+                      <TableCell>
+                        <div>
+                          <div className="font-medium">{user.name}</div>
+                          <div className="text-sm text-muted-foreground">{user.email}</div>
+                        </div>
+                      </TableCell>
+                      <TableCell>{getRoleBadge(user.role)}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center">
+                          {getStatusIcon(user.isActive)}
+                          <span className="ml-2 text-sm">
+                            {user.isActive ? "Active" : "Inactive"}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{user._count.applications}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{user._count.certifications}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-sm text-muted-foreground">
+                          {new Date(user.createdAt).toLocaleDateString()}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Select
+                          value={user.role}
+                          onValueChange={(newRole) => updateUserRole(user.id, newRole)}
+                          disabled={updatingRole === user.id}
+                        >
+                          <SelectTrigger className="w-32">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="USER">User</SelectItem>
+                            <SelectItem value="ADMIN">Admin</SelectItem>
+                            <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );
