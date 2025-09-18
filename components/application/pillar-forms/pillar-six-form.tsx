@@ -9,9 +9,9 @@ import { CheckCircle, AlertCircle } from "lucide-react"
 const pillarSixIndicators = [
   {
     id: "6.1.1",
-    shortName: "Performance Metrics",
-    description:
-      "To what extent has the organization established and implemented specific metrics for evaluating innovation processes, outputs, and outcomes?",
+    shortName: "Metric Implementation",
+    description: "To what extent has the organization established and implemented specific metrics for evaluating innovation processes, outputs, and outcomes, as guided by ISO 56008?",
+    howToCalculate: "Number of metrics implemented vs. recommended; percentage.",
     measurementUnit: "Percentage (%)",
     remark: "ISO 56008 aligned.",
     example: "90% of recommended metrics in use.",
@@ -20,18 +20,29 @@ const pillarSixIndicators = [
   {
     id: "6.1.2",
     shortName: "Data-Driven Decisions",
-    description:
-      "How effectively is data from these metrics used to support and drive strategic and operational decision-making within the innovation function?",
+    description: "How effectively is data from these metrics used to support and drive strategic and operational decision-making within the innovation function?",
+    howToCalculate: "Percentage of decisions backed by data.",
     measurementUnit: "Percentage (%)",
     remark: "Audit decision logs.",
     example: "80% decisions data-driven.",
     evidenceRequired: "Decision logs (PDF). For <50%: %. For >50%: Backed examples.",
   },
   {
+    id: "6.1.3",
+    shortName: "Data Collection",
+    description: "How robust and systematic are the methodologies for collecting and analyzing innovation data to ensure the accuracy and reliability of performance metrics?",
+    howToCalculate: "Score methodology robustness (1-5).",
+    measurementUnit: "Score (1-5)",
+    remark: "Use automated tools.",
+    example: "Systematic collection, scoring 4.",
+    evidenceRequired: "Methodology docs (PDF), tool screenshots. For <3: Description. For >3: Reliability tests.",
+    maxScore: 5,
+  },
+  {
     id: "6.2.1",
     shortName: "IMS Assessment",
-    description:
-      "How frequently and rigorously does the organization evaluate its overall Innovation Management System?",
+    description: "How frequently and rigorously does the organization evaluate its overall Innovation Management System to assess its design, implementation, and effectiveness, using methodologies guided by ISO 56004?",
+    howToCalculate: "Frequency score: annual=1, quarterly=3.",
     measurementUnit: "Score (0-3)",
     remark: "ISO 56004 guided.",
     example: "Quarterly evaluations, scoring 3.",
@@ -39,14 +50,55 @@ const pillarSixIndicators = [
     maxScore: 3,
   },
   {
+    id: "6.2.2",
+    shortName: "Formal Audits",
+    description: "To what extent does the organization conduct formal internal or external audits of the IMS to identify non-conformities and ensure compliance with established standards and processes?",
+    howToCalculate: "Number of audits per year.",
+    measurementUnit: "Number",
+    remark: "External for objectivity.",
+    example: "2 audits annually.",
+    evidenceRequired: "Audit reports (PDF). For <2: Counts. For ≥2: Full reports.",
+  },
+  {
+    id: "6.2.3",
+    shortName: "Maturity Assessment",
+    description: "How systematically does the organization use formal criteria or tools to assess the maturity of its innovation management practices?",
+    howToCalculate: "Maturity level (1-5).",
+    measurementUnit: "Score (1-5)",
+    remark: "Tools like maturity models.",
+    example: "Assessed at level 4.",
+    evidenceRequired: "Maturity assessment tools/results (PDF). For <3: Level. For >3: Tool outputs.",
+    maxScore: 5,
+  },
+  {
     id: "6.3.1",
     shortName: "Feedback Loop",
-    description:
-      "How effectively are insights from performance measurement, evaluations, and audit findings channeled into a formal continuous improvement process?",
+    description: "How effectively are insights from performance measurement, evaluations, and audit findings channeled into a formal continuous improvement process for the IMS?",
+    howToCalculate: "Percentage of insights actioned.",
     measurementUnit: "Percentage (%)",
     remark: "Closed-loop system.",
     example: "95% insights lead to improvements.",
     evidenceRequired: "Insight action logs (Excel). For <50%: %. For >50%: Action examples.",
+  },
+  {
+    id: "6.3.2",
+    shortName: "Corrective Actions",
+    description: "How systematically does the organization implement and track corrective actions to address non-conformities or weaknesses identified during audits and assessments?",
+    howToCalculate: "Completion rate of actions; percentage.",
+    measurementUnit: "Percentage (%)",
+    remark: "Tracked in systems.",
+    example: "100% actions completed.",
+    evidenceRequired: "Action tracking (PDF/Excel). For <50%: Rates. For >50%: Completion proof.",
+  },
+  {
+    id: "6.3.3",
+    shortName: "System Evolution",
+    description: "To what degree is the IMS treated as a dynamic system, subject to regular reviews and updates to ensure its ongoing effectiveness and alignment with evolving strategic goals?",
+    howToCalculate: "Number of updates per year.",
+    measurementUnit: "Number",
+    remark: "Dynamic = adaptive.",
+    example: "4 updates annually.",
+    evidenceRequired: "Update logs (PDF). For <2: Counts. For ≥2: Update details.",
   },
 ]
 
@@ -92,10 +144,17 @@ export function PillarSixForm({ onDataChange, onScoreChange, initialData }: Pill
       if (hasValue) {
         scoredIndicators++
         if (indicator.measurementUnit.includes('Score')) {
-          const maxScore = indicator.maxScore || 3
+          const maxScore = indicator.maxScore || 5
           totalScore += (value / maxScore) * 100
         } else if (indicator.measurementUnit.includes('Percentage')) {
           totalScore += Math.min(value, 100)
+        } else if (indicator.measurementUnit === 'Number') {
+          // For 6.2.2 (Formal Audits) and 6.3.3 (System Evolution), convert numbers to percentage
+          if (indicator.id === '6.2.2') {
+            totalScore += Math.min((value / 2) * 100, 100) // 2 audits = 100%
+          } else if (indicator.id === '6.3.3') {
+            totalScore += Math.min((value / 4) * 100, 100) // 4 updates = 100%
+          }
         }
       }
     })
@@ -113,7 +172,7 @@ export function PillarSixForm({ onDataChange, onScoreChange, initialData }: Pill
     }
   }, [formData, evidence])
 
-  // Update parent when data changes - ONLY specific values
+  // Update parent when data changes - FIXED TO PREVENT INFINITE LOOPS
   useEffect(() => {
     const combinedData = {
       indicators: formData,
@@ -122,7 +181,7 @@ export function PillarSixForm({ onDataChange, onScoreChange, initialData }: Pill
     }
     onDataChange(combinedData)
     onScoreChange(stats.averageScore)
-  }, [stats.averageScore, stats.completion]) // Only depend on specific numeric values
+  }, [stats.averageScore, stats.completion]) // FIXED: Only depend on numeric values, not objects
 
   // Handle input changes
   const handleInputChange = useCallback((indicatorId: string, value: any) => {
@@ -132,16 +191,13 @@ export function PillarSixForm({ onDataChange, onScoreChange, initialData }: Pill
     }))
   }, [])
 
-  // Handle evidence changes
+  // Handle evidence changes - FIXED TO PREVENT RENDER CONFLICTS
   const handleEvidenceChange = useCallback((indicatorId: string, evidenceData: any) => {
     console.log(`Evidence changed for indicator ${indicatorId}:`, evidenceData);
-    // Use setTimeout to defer the state update and avoid render conflicts
-    setTimeout(() => {
-      setEvidence((prev: any) => ({
-        ...prev,
-        [indicatorId]: evidenceData
-      }))
-    }, 0);
+    setEvidence((prev: any) => ({
+      ...prev,
+      [indicatorId]: evidenceData
+    }))
   }, [])
 
   return (

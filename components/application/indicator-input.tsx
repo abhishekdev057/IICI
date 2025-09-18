@@ -173,13 +173,17 @@ export function IndicatorInput({
       
       console.log('Updated evidence object:', updatedEvidence);
       
-      // Call the parent callback with the updated evidence
-      console.log('Calling onEvidenceChange with:', updatedEvidence);
-      onEvidenceChange(updatedEvidence);
-      
       return updatedEvidence;
     });
-  }, [onEvidenceChange, indicator.id])
+  }, [indicator.id])
+
+  // Effect to call parent callback when evidence changes
+  useEffect(() => {
+    if (Object.keys(localEvidence).length > 0) {
+      console.log('Calling onEvidenceChange with:', localEvidence);
+      onEvidenceChange(localEvidence);
+    }
+  }, [localEvidence, onEvidenceChange])
 
   // Remove evidence type
   const removeEvidenceType = useCallback((type: 'text' | 'link' | 'file') => {
@@ -190,7 +194,6 @@ export function IndicatorInput({
       delete updatedEvidence[type];
       
       console.log('Updated evidence after removal:', updatedEvidence);
-      onEvidenceChange(updatedEvidence);
       
       return updatedEvidence;
     });
@@ -198,7 +201,7 @@ export function IndicatorInput({
     if (activeEvidenceType === type) {
       setActiveEvidenceType(null);
     }
-  }, [onEvidenceChange, indicator.id, activeEvidenceType]);
+  }, [indicator.id, activeEvidenceType]);
 
   // Handle file upload with progress tracking
   const handleFileUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {

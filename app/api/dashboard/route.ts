@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid session - no user ID or email' }, { status: 400 })
     }
 
-    // Fetch the latest application with all related data
+    // OPTIMIZED: Fetch only essential data for faster loading
     const application = await prisma.application.findFirst({
       where: { userId },
       orderBy: { updatedAt: 'desc' },
@@ -37,11 +37,20 @@ export async function GET(request: NextRequest) {
         institutionData: true,
         indicatorResponses: {
           include: {
-            evidence: true
+            evidence: {
+              select: {
+                id: true,
+                type: true,
+                fileName: true,
+                url: true,
+                description: true
+              }
+            }
           }
         },
         scoreAudits: {
-          orderBy: { calculatedAt: 'desc' }
+          orderBy: { calculatedAt: 'desc' },
+          take: 1 // Only get the latest score audit
         }
       }
     })
@@ -221,136 +230,87 @@ export async function GET(request: NextRequest) {
 function getIndicatorDefinitions() {
   return {
     // Pillar 1 indicators
-    "1.1.a": {
+    "1.1.1": {
       shortName: "Formal Innovation Intent",
       description: "Assesses whether the organization has a formal, written statement defining its innovation intent",
       measurementUnit: "Score (0-2)"
     },
-    "1.1.b": {
+    "1.1.2": {
       shortName: "Strategy Alignment",
       description: "Evaluates if the innovation strategy directly supports broader business goals",
       measurementUnit: "Percentage (%)"
     },
-    "1.1.c": {
+    "1.1.3": {
       shortName: "Innovation Priorities",
       description: "Checks for explicit listing of innovation focus areas",
       measurementUnit: "Score (0-2)"
     },
-    "1.1.d": {
+    "1.1.4": {
       shortName: "Intent Communication",
       description: "Assesses dissemination of innovation intent to employees, partners, and investors",
       measurementUnit: "Percentage (%)"
     },
     
-    // Pillar 2 indicators
-    "2.1.1": {
-      shortName: "Innovation Budget",
-      description: "Measures the sufficiency of budget allocated for developing new products, services, or internal processes",
-      measurementUnit: "Percentage (%)"
-    },
-    "2.1.2": {
-      shortName: "IP Investment",
-      description: "Evaluates the allocation of financial resources dedicated to protecting and optimizing the value of intellectual property",
-      measurementUnit: "Percentage (%)"
-    },
-    "2.2.1": {
-      shortName: "Personnel Allocation",
-      description: "Measures the extent to which adequate personnel are assigned to support innovation efforts",
-      measurementUnit: "Percentage (%)"
-    },
-    "2.2.2": {
-      shortName: "Dedicated Innovation Time",
-      description: "Evaluates the provision of dedicated time for employees to conduct experiments, test ideas, and engage in creative development",
-      measurementUnit: "Percentage (%)"
-    },
+    // Pillar 1 additional indicators
+    "1.2.1": { shortName: "IMS Champion", measurementUnit: "Binary (0-1)" },
+    "1.2.2": { shortName: "Leadership Engagement", measurementUnit: "Percentage (%)" },
+    "1.2.3": { shortName: "Budget Allocation", measurementUnit: "Percentage (%)" },
+    "1.2.4": { shortName: "Innovation Mindset Promotion", measurementUnit: "Score (1-5)" },
+    "1.3.1": { shortName: "Innovation Policy", measurementUnit: "Score (0-3)" },
+    "1.3.2": { shortName: "Policy Communication", measurementUnit: "Percentage (%)" },
+    "1.3.3": { shortName: "IP Strategy Presence", measurementUnit: "Score (0-2)" },
+    "1.3.4": { shortName: "IP Alignment", measurementUnit: "Percentage (%)" },
+    "1.4.1": { shortName: "Internal Feedback Process", measurementUnit: "Score (0-3)" },
+    "1.4.2": { shortName: "External Intelligence Gathering", measurementUnit: "Percentage (%)" },
+    "1.4.3": { shortName: "Strategy Adjustment Mechanism", measurementUnit: "Binary (0-1)" },
+    "1.4.4": { shortName: "Strategic Pivot Example", measurementUnit: "Score (0-2)" },
 
-    // Pillar 3 indicators
-    "3.1.1": {
-      shortName: "Innovation Processes",
-      description: "Assesses the systematic approach to managing innovation activities",
-      measurementUnit: "Score (1-5)"
-    },
-    "3.2.1": {
-      shortName: "Idea Capture",
-      description: "A systematic process is used for the capture, documentation, and tracking of ideas",
-      measurementUnit: "Number"
-    },
-    "3.4.1": {
-      shortName: "Creative Encouragement",
-      description: "The culture actively encourages and rewards creativity, calculated risk-taking, and cross-functional collaboration",
-      measurementUnit: "Score (1-5)"
-    },
-    "3.4.2": {
-      shortName: "Psychological Safety",
-      description: "The organization fosters open communication, values diversity of thought, and provides safe spaces for experimentation",
-      measurementUnit: "Percentage (%)"
-    },
+    // Pillar 2 additional indicators
+    "2.1.3": { shortName: "Funding Accessibility", measurementUnit: "Score (1-5)" },
+    "2.2.3": { shortName: "Training Programs", measurementUnit: "Hours per employee" },
+    "2.2.4": { shortName: "Competency Assessment", measurementUnit: "Score (0-3)" },
+    "2.2.5": { shortName: "Skill Gap Strategy", measurementUnit: "Percentage (%)" },
+    "2.3.1": { shortName: "IMS Tools Adoption", measurementUnit: "Percentage (%)" },
+    "2.3.2": { shortName: "Idea Tracking Effectiveness", measurementUnit: "Score (1-5)" },
+    "2.3.3": { shortName: "Physical Infrastructure", measurementUnit: "Percentage (%)" },
+    "2.3.4": { shortName: "Management Resource Support", measurementUnit: "Score (1-5)" },
 
-    // Pillar 4 indicators
-    "4.1.1": {
-      shortName: "IP Strategy",
-      description: "Assesses the alignment of intellectual property strategy with overall business and innovation objectives",
-      measurementUnit: "Score (1-5)"
-    },
-    "4.2.1": {
-      shortName: "IP Identification",
-      description: "How systematic and integrated are the processes for identifying and capturing potential intellectual assets",
-      measurementUnit: "Percentage (%)"
-    },
-    "4.2.3": {
-      shortName: "IP Exploitation",
-      description: "To what extent does the organization actively explore and execute strategies to monetize its portfolio of intellectual assets",
-      measurementUnit: "Percentage (%)"
-    },
-    "4.4.2": {
-      shortName: "Knowledge Sharing",
-      description: "How effective and accessible are the internal systems and cultural norms for sharing knowledge, resources, and ideas",
-      measurementUnit: "Score (1-5)"
-    },
+    // Pillar 3 additional indicators
+    "3.1.2": { shortName: "Role Clarity", measurementUnit: "Percentage (%)" },
+    "3.1.3": { shortName: "Progress Tracking", measurementUnit: "Percentage (%)" },
+    "3.1.4": { shortName: "Output Efficiency", measurementUnit: "Score (1-5)" },
+    "3.2.2": { shortName: "Evaluation Criteria", measurementUnit: "Percentage (%)" },
+    "3.2.3": { shortName: "Idea Pathway", measurementUnit: "Binary (0-1)" },
+    "3.3.1": { shortName: "Hypothesis Testing", measurementUnit: "Percentage (%)" },
+    "3.3.2": { shortName: "Concept Adaptation", measurementUnit: "Number" },
+    "3.3.3": { shortName: "Continuous Iteration", measurementUnit: "Number" },
+    "3.4.3": { shortName: "Culture Assessment", measurementUnit: "Score (0-3)" },
+    "3.4.4": { shortName: "Process-Culture Synergy", measurementUnit: "Score (1-5)" },
+    "3.5.1": { shortName: "Strategy Communication", measurementUnit: "Percentage (%)" },
+    "3.5.2": { shortName: "Employee Alignment", measurementUnit: "Percentage (%)" },
 
-    // Pillar 5 indicators
-    "5.1.1": {
-      shortName: "Intelligence Sources",
-      description: "How diverse and comprehensive are the sources of strategic intelligence used to inform innovation decisions",
-      measurementUnit: "Score (1-5)"
-    },
-    "5.1.3": {
-      shortName: "Informed Decisions",
-      description: "How effectively is strategic intelligence integrated into decision-making processes",
-      measurementUnit: "Percentage (%)"
-    },
-    "5.2.2": {
-      shortName: "Partner Selection",
-      description: "How well-defined and strategic is the process for identifying, evaluating, and selecting external partners",
-      measurementUnit: "Score (1-5)"
-    },
-    "5.2.4": {
-      shortName: "Partnership Value",
-      description: "To what extent do external collaborations demonstrably contribute to the organization's innovation capacity",
-      measurementUnit: "Percentage (%)"
-    },
+    // Pillar 4 additional indicators
+    "4.1.2": { shortName: "Proactive IP Value", measurementUnit: "Ratio" },
+    "4.1.3": { shortName: "Environmental IP Integration", measurementUnit: "Percentage (%)" },
+    "4.2.2": { shortName: "IP Protection Process", measurementUnit: "Score (1-5)" },
+    "4.3.1": { shortName: "IP Risk Assessment", measurementUnit: "Score (0-3)" },
+    "4.3.2": { shortName: "IP Risk Mitigation", measurementUnit: "Percentage (%)" },
+    "4.4.1": { shortName: "Intelligence Management", measurementUnit: "Percentage (%)" },
+    "4.4.3": { shortName: "Knowledge-IP Integration", measurementUnit: "Score (1-5)" },
 
-    // Pillar 6 indicators
-    "6.1.1": {
-      shortName: "Performance Metrics",
-      description: "To what extent has the organization established and implemented specific metrics for evaluating innovation processes",
-      measurementUnit: "Percentage (%)"
-    },
-    "6.1.2": {
-      shortName: "Data-Driven Decisions",
-      description: "How effectively is data from these metrics used to support and drive strategic and operational decision-making",
-      measurementUnit: "Percentage (%)"
-    },
-    "6.2.1": {
-      shortName: "IMS Assessment",
-      description: "How frequently and rigorously does the organization evaluate its overall Innovation Management System",
-      measurementUnit: "Score (0-3)"
-    },
-    "6.3.1": {
-      shortName: "Feedback Loop",
-      description: "How effectively are insights from performance measurement, evaluations, and audit findings channeled into a formal continuous improvement process",
-      measurementUnit: "Percentage (%)"
-    }
+    // Pillar 5 additional indicators
+    "5.1.2": { shortName: "Analysis Synthesis", measurementUnit: "Percentage (%)" },
+    "5.1.4": { shortName: "Proactive Foresight", measurementUnit: "Number" },
+    "5.1.5": { shortName: "Monitoring Adaptation", measurementUnit: "Score (0-3)" },
+    "5.2.1": { shortName: "Competency Analysis", measurementUnit: "Percentage (%)" },
+    "5.2.3": { shortName: "Partnership Management", measurementUnit: "Percentage (%)" },
+
+    // Pillar 6 additional indicators
+    "6.1.3": { shortName: "Data Collection", measurementUnit: "Score (1-5)" },
+    "6.2.2": { shortName: "Formal Audits", measurementUnit: "Number" },
+    "6.2.3": { shortName: "Maturity Assessment", measurementUnit: "Score (1-5)" },
+    "6.3.2": { shortName: "Corrective Actions", measurementUnit: "Percentage (%)" },
+    "6.3.3": { shortName: "System Evolution", measurementUnit: "Number" }
   }
 }
 

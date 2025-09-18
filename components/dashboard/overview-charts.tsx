@@ -35,75 +35,179 @@ export function OverviewCharts({
       const pageWidth = pdf.internal.pageSize.getWidth()
       const pageHeight = pdf.internal.pageSize.getHeight()
       const margin = 20
+      const contentWidth = pageWidth - 2 * margin
       
       let yPosition = margin
 
-      // Header
-      pdf.setFontSize(24)
+      // Company Header with Logo Area
+      pdf.setFillColor(15, 23, 42) // Dark blue background
+      pdf.rect(0, 0, pageWidth, 40, 'F')
+      
+      // Company Logo Text
+      pdf.setTextColor(255, 255, 255)
+      pdf.setFontSize(20)
       pdf.setFont("helvetica", "bold")
-      pdf.text("IIICI Innovation Maturity Report", pageWidth / 2, yPosition, { align: "center" })
-      yPosition += 15
-
+      pdf.text("IIICI", 20, 15)
+      
       pdf.setFontSize(12)
       pdf.setFont("helvetica", "normal")
-      pdf.text(`Assessment Date: ${issuedDate ? new Date(issuedDate).toLocaleDateString() : new Date().toLocaleDateString()}`, margin, yPosition)
-      yPosition += 8
-      pdf.text(`Certification Level: ${certificationLevel}`, margin, yPosition)
+      pdf.text("Indian Institute of Innovation & Certification", 20, 25)
+      pdf.text("Innovation Excellence Assessment", 20, 32)
+      
+      // Report Title
+      pdf.setTextColor(0, 0, 0)
+      yPosition = 50
+      pdf.setFontSize(24)
+      pdf.setFont("helvetica", "bold")
+      pdf.text("INNOVATION MATURITY ASSESSMENT REPORT", pageWidth / 2, yPosition, { align: "center" })
       yPosition += 15
 
-      // Overall Score
-      pdf.setFontSize(16)
-      pdf.setFont("helvetica", "bold")
-      pdf.text("Overall Innovation Maturity Score", margin, yPosition)
-      yPosition += 10
-
-      pdf.setFontSize(36)
-      pdf.setFont("helvetica", "bold")
-      pdf.text(`${overallScore.toFixed(1)}%`, margin, yPosition)
-      yPosition += 20
-
-      // Pillar Scores
+      // Certificate Badge
+      pdf.setFillColor(34, 197, 94) // Green
+      pdf.roundedRect(pageWidth / 2 - 30, yPosition - 5, 60, 20, 3, 3, 'F')
+      pdf.setTextColor(255, 255, 255)
       pdf.setFontSize(14)
       pdf.setFont("helvetica", "bold")
-      pdf.text("Pillar Performance Analysis", margin, yPosition)
-      yPosition += 10
+      pdf.text("CERTIFIED", pageWidth / 2, yPosition + 2, { align: "center" })
+      pdf.setFontSize(10)
+      pdf.text(certificationLevel.toUpperCase(), pageWidth / 2, yPosition + 8, { align: "center" })
+      
+      yPosition += 25
+      pdf.setTextColor(0, 0, 0)
 
-      const pillarNames = [
-        "Strategic Foundation & Leadership",
-        "Resource Allocation & Infrastructure", 
-        "Innovation Processes & Culture",
-        "Knowledge & IP Management",
-        "Strategic Intelligence & Collaboration",
-        "Performance Measurement & Improvement"
-      ]
-
+      // Organization Details Box
+      pdf.setFillColor(248, 250, 252) // Light gray
+      pdf.roundedRect(margin, yPosition, contentWidth, 25, 3, 3, 'F')
+      
+      pdf.setFontSize(14)
+      pdf.setFont("helvetica", "bold")
+      pdf.text("Assessment Information", margin + 5, yPosition + 8)
+      
       pdf.setFontSize(10)
       pdf.setFont("helvetica", "normal")
+      pdf.text(`Assessment Date: ${issuedDate ? new Date(issuedDate).toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      }) : new Date().toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      })}`, margin + 5, yPosition + 16)
+      pdf.text(`Report Generated: ${new Date().toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      })}`, margin + 5, yPosition + 22)
+      
+      yPosition += 35
 
+      // Overall Score Section
+      pdf.setFillColor(59, 130, 246) // Blue
+      pdf.roundedRect(margin, yPosition, contentWidth, 25, 3, 3, 'F')
+      
+      pdf.setTextColor(255, 255, 255)
+      pdf.setFontSize(18)
+      pdf.setFont("helvetica", "bold")
+      pdf.text("OVERALL INNOVATION MATURITY SCORE", pageWidth / 2, yPosition + 8, { align: "center" })
+      
+      pdf.setFontSize(32)
+      pdf.setFont("helvetica", "bold")
+      pdf.text(`${overallScore.toFixed(1)}%`, pageWidth / 2, yPosition + 20, { align: "center" })
+      
+      yPosition += 35
+      pdf.setTextColor(0, 0, 0)
+
+      // Performance Level Indicator
+      const performanceLevel = overallScore >= 85 ? "LEADING" : 
+                              overallScore >= 70 ? "OPTIMIZING" : 
+                              overallScore >= 60 ? "STRUCTURED" : 
+                              overallScore >= 50 ? "DEVELOPING" : "INITIATING"
+      
+      pdf.setFontSize(14)
+      pdf.setFont("helvetica", "bold")
+      pdf.text(`Performance Level: ${performanceLevel}`, pageWidth / 2, yPosition, { align: "center" })
+      yPosition += 15
+
+      // Pillar Performance Table
+      pdf.setFontSize(16)
+      pdf.setFont("helvetica", "bold")
+      pdf.text("PILLAR PERFORMANCE ANALYSIS", margin, yPosition)
+      yPosition += 10
+
+      // Table Header
+      pdf.setFillColor(241, 245, 249)
+      pdf.rect(margin, yPosition, contentWidth, 8, 'F')
+      pdf.setFontSize(10)
+      pdf.setFont("helvetica", "bold")
+      pdf.text("Pillar", margin + 2, yPosition + 5)
+      pdf.text("Score", margin + 120, yPosition + 5)
+      pdf.text("Status", margin + 150, yPosition + 5)
+      pdf.text("Level", margin + 180, yPosition + 5)
+      yPosition += 8
+
+      // Table Rows
+      pdf.setFont("helvetica", "normal")
       pillarScores.forEach((score, index) => {
-        if (yPosition > pageHeight - 30) {
+        if (yPosition > pageHeight - 40) {
           pdf.addPage()
           yPosition = margin
         }
 
         const status = score >= 70 ? "Excellent" : score >= 50 ? "Good" : "Needs Improvement"
-        pdf.text(`${pillarNames[index]}: ${score.toFixed(1)}% (${status})`, margin, yPosition)
+        const level = score >= 70 ? "Excellent" : score >= 50 ? "Good" : "Needs Improvement"
+        
+        // Alternate row colors
+        if (index % 2 === 0) {
+          pdf.setFillColor(248, 250, 252)
+          pdf.rect(margin, yPosition, contentWidth, 6, 'F')
+        }
+        
+        pdf.setFontSize(9)
+        pdf.text(pillarNames[index], margin + 2, yPosition + 4)
+        pdf.text(`${score.toFixed(1)}%`, margin + 120, yPosition + 4)
+        pdf.text(status, margin + 150, yPosition + 4)
+        pdf.text(level, margin + 180, yPosition + 4)
         yPosition += 6
       })
 
-      // Footer
-      const footerY = pageHeight - 10
-      pdf.setFontSize(8)
-      pdf.setFont("helvetica", "italic")
-      pdf.text("Generated by IIICI Certification System", pageWidth / 2, footerY, { align: "center" })
+      yPosition += 10
 
-      // Save the PDF
-      const fileName = `IIICI_Quick_Report_${new Date().toISOString().split('T')[0]}.pdf`
+      // Company Footer with Signature
+      const footerY = pageHeight - 60
+      
+      // Signature Section
+      pdf.setFontSize(12)
+      pdf.setFont("helvetica", "bold")
+      pdf.text("Certification Authority", margin, footerY)
+      
+      pdf.setFontSize(10)
+      pdf.setFont("helvetica", "normal")
+      pdf.text("Dr. Innovation Excellence", margin, footerY + 8)
+      pdf.text("Chief Innovation Officer", margin, footerY + 14)
+      pdf.text("Indian Institute of Innovation & Certification", margin, footerY + 20)
+      
+      // Signature Line
+      pdf.line(margin + 80, footerY + 25, margin + 120, footerY + 25)
+      pdf.setFontSize(8)
+      pdf.text("Digital Signature", margin + 95, footerY + 28)
+      
+      // Company Footer
+      pdf.setFillColor(15, 23, 42)
+      pdf.rect(0, pageHeight - 15, pageWidth, 15, 'F')
+      pdf.setTextColor(255, 255, 255)
+      pdf.setFontSize(8)
+      pdf.setFont("helvetica", "normal")
+      pdf.text("© 2024 Indian Institute of Innovation & Certification. All rights reserved.", pageWidth / 2, pageHeight - 8, { align: "center" })
+      pdf.text("This report is confidential and proprietary to the organization.", pageWidth / 2, pageHeight - 4, { align: "center" })
+
+      // Save the PDF with professional filename
+      const fileName = `IIICI_Innovation_Assessment_${new Date().toISOString().split('T')[0]}.pdf`
       pdf.save(fileName)
 
       toast({
-        title: "Report Downloaded!",
-        description: "Quick report has been downloaded successfully.",
+        title: "Professional Report Generated!",
+        description: "Innovation maturity report with company standards has been downloaded.",
         variant: "default",
       })
 

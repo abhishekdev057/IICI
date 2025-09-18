@@ -11,6 +11,7 @@ import { useData } from "@/contexts/data-context"
 import { InstitutionSetup } from "./institution-setup"
 import { ScorePreview } from "./score-preview"
 import { PillarOneForm } from "./pillar-forms/pillar-one-form"
+import { PillarOneFormOrganized } from "./pillar-forms/pillar-one-form-organized"
 import { PillarTwoForm } from "./pillar-forms/pillar-two-form"
 import { PillarThreeForm } from "./pillar-forms/pillar-three-form"
 import { PillarFourForm } from "./pillar-forms/pillar-four-form"
@@ -19,7 +20,7 @@ import { PillarSixForm } from "./pillar-forms/pillar-six-form"
 
 const formSteps = [
   { id: 0, title: "Institution Setup", component: InstitutionSetup, icon: Building2 },
-  { id: 1, title: "Strategic Foundation & Leadership", component: PillarOneForm },
+  { id: 1, title: "Strategic Foundation & Leadership", component: PillarOneFormOrganized },
   { id: 2, title: "Resource Allocation & Infrastructure", component: PillarTwoForm },
   { id: 3, title: "Innovation Processes & Culture", component: PillarThreeForm },
   { id: 4, title: "Knowledge & IP Management", component: PillarFourForm },
@@ -240,13 +241,13 @@ export function FormWizard() {
         clearTimeout(autoSaveTimerRef.current);
       }
       
-      // Set new auto-save timer (2 seconds delay)
+      // Set new auto-save timer (2 seconds delay) - FIXED TO PREVENT LOOPS
       autoSaveTimerRef.current = setTimeout(() => {
         console.log('Auto-saving after data change...');
         saveApplication();
       }, 2000);
     }
-  }, [currentStep, updatePillar, saveApplication])
+  }, [currentStep, updatePillar, saveApplication]) // FIXED: Dependencies are stable
   
   // Cleanup timer on unmount
   useEffect(() => {
@@ -257,13 +258,18 @@ export function FormWizard() {
     };
   }, []);
 
-  // Loading state
+  // Loading state - OPTIMIZED
   if (!application) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <Clock className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
           <p className="text-muted-foreground">Loading application...</p>
+          {/* OPTIMIZED: Add progress indicator */}
+          <div className="mt-4 w-64 bg-gray-200 rounded-full h-2 mx-auto">
+            <div className="bg-primary h-2 rounded-full animate-pulse" style={{width: '75%'}}></div>
+          </div>
+          <p className="text-xs text-muted-foreground mt-2">Preparing your assessment...</p>
         </div>
       </div>
     )

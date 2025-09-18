@@ -3,8 +3,8 @@
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { FormWizard } from "@/components/application/form-wizard";
-import { DataProvider } from "@/contexts/data-context";
+import { CleanFormWizard } from "@/components/application/clean-form-wizard";
+import { ApplicationProvider } from "@/contexts/application-context";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Shield, ArrowRight, Building2, Award } from "lucide-react";
@@ -31,7 +31,7 @@ export default function ApplicationPage() {
     }
   }, [session, status, router]);
 
-  // Show loading state while checking authentication
+  // Show loading state while checking authentication - OPTIMIZED
   if (status === "loading" || isRedirecting) {
     return (
       <div className="min-h-screen bg-background">
@@ -44,6 +44,10 @@ export default function ApplicationPage() {
                 ? "Checking authentication..."
                 : "Redirecting to login..."}
             </p>
+            {/* OPTIMIZED: Add progress indicator */}
+            <div className="mt-4 w-64 bg-gray-200 rounded-full h-2 mx-auto">
+              <div className="bg-primary h-2 rounded-full animate-pulse" style={{width: '60%'}}></div>
+            </div>
           </div>
         </div>
         <Footer variant="minimal" />
@@ -125,7 +129,7 @@ export default function ApplicationPage() {
   }
 
   return (
-    <DataProvider>
+    <ApplicationProvider>
       <div className="min-h-screen bg-background">
         <Navigation variant="dashboard" title="IIICI Application" />
         <div className="container mx-auto px-4 py-8">
@@ -153,10 +157,10 @@ export default function ApplicationPage() {
           </div>
 
           {/* Application Form */}
-          <FormWizard />
+          <CleanFormWizard />
         </div>
         <Footer variant="minimal" />
       </div>
-    </DataProvider>
+    </ApplicationProvider>
   );
 }

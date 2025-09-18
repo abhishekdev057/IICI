@@ -29,6 +29,7 @@ export interface IndicatorResponse {
   rawValue: any
   normalizedScore: number
   measurementUnit: string
+  maxScore?: number
   hasEvidence: boolean
   createdAt: Date
   updatedAt: Date

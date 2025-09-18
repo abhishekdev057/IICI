@@ -18,7 +18,7 @@ export function Footer({ variant = "landing" }: FooterProps) {
               </div>
               <span className="font-semibold text-sm">IIICI</span>
             </div>
-            <p className="text-xs text-muted-foreground">© 2024 IIICI. All rights reserved.</p>
+            <p className="text-xs text-muted-foreground">© 2025 IIICI. All rights reserved.</p>
           </div>
         </div>
       </footer>
@@ -138,7 +138,7 @@ export function Footer({ variant = "landing" }: FooterProps) {
             </Link>
           </div>
           <div className="flex items-center space-x-4">
-            <p className="text-sm text-muted-foreground">© 2024 IIICI. All rights reserved.</p>
+            <p className="text-sm text-muted-foreground">© 2025 IIICI. All rights reserved.</p>
             <div className="flex items-center space-x-1 text-xs text-muted-foreground">
               <span>Built with</span>
               <span className="text-primary">♦</span>

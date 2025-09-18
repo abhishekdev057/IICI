@@ -94,7 +94,7 @@ export function SubmissionsOverview({ onViewSubmission }: SubmissionsOverviewPro
         if (res.ok) {
           const json = await res.json()
           const onlyAdmins = (json.users || [])
-            .filter((u: any) => u.role === 'ADMIN')
+            .filter((u: any) => u.role === 'ADMIN' || u.role === 'SUPER_ADMIN')
             .map((u: any) => ({ id: u.id, name: u.name || u.email, email: u.email }))
           setAdmins(onlyAdmins)
         }

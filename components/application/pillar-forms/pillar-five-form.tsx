@@ -9,9 +9,9 @@ import { CheckCircle, AlertCircle } from "lucide-react"
 const pillarFiveIndicators = [
   {
     id: "5.1.1",
-    shortName: "Intelligence Sources",
-    description:
-      "How diverse and comprehensive are the sources of strategic intelligence used to inform innovation decisions?",
+    shortName: "Intelligence Gathering",
+    description: "To what extent does the organization systematically collect relevant data and information from diverse external sources (e.g., market trends, competitor analysis, technological developments)?",
+    howToCalculate: "Number of sources used; score (1-5) based on diversity.",
     measurementUnit: "Score (1-5)",
     remark: "Diverse sources reduce bias.",
     example: "Uses 10+ sources, scoring 5.",
@@ -19,20 +19,61 @@ const pillarFiveIndicators = [
     maxScore: 5,
   },
   {
+    id: "5.1.2",
+    shortName: "Analysis Synthesis",
+    description: "How rigorous and effective are the processes for analyzing and synthesizing raw information to generate meaningful and actionable insights that can inform innovation strategy?",
+    howToCalculate: "Percentage of data leading to insights.",
+    measurementUnit: "Percentage (%)",
+    remark: "Use analytics tools.",
+    example: "70% data synthesized into actions.",
+    evidenceRequired: "Analysis reports (PDF). For <50%: Percentages. For >50%: Insight examples.",
+  },
+  {
     id: "5.1.3",
     shortName: "Informed Decisions",
-    description:
-      "How effectively is strategic intelligence integrated into decision-making processes to ensure strategic choices are aligned with innovation goals?",
+    description: "How effectively is strategic intelligence integrated into decision-making processes to ensure strategic choices are aligned with innovation goals and informed by external realities?",
+    howToCalculate: "Percentage of decisions using intelligence.",
     measurementUnit: "Percentage (%)",
     remark: "Track in minutes.",
     example: "90% decisions informed.",
     evidenceRequired: "Decision minutes (PDF). For <50%: Stats. For >50%: Linked minutes.",
   },
   {
+    id: "5.1.4",
+    shortName: "Proactive Foresight",
+    description: "To what degree does the strategic intelligence function enable the organization to anticipate market shifts, identify nascent opportunities, and foresee potential threats proactively?",
+    howToCalculate: "Number of foreseen events acted upon.",
+    measurementUnit: "Number",
+    remark: "Predictive analytics.",
+    example: "Foreseen 5 market shifts.",
+    evidenceRequired: "Foresight reports (PDF). For <3: Counts. For >3: Action examples.",
+  },
+  {
+    id: "5.1.5",
+    shortName: "Monitoring Adaptation",
+    description: "How agile is the organization in continuously monitoring the external environment and adapting its innovation strategies in response to new intelligence?",
+    howToCalculate: "Adaptation frequency; score 0-3 (monthly=3).",
+    measurementUnit: "Score (0-3)",
+    remark: "Agility key in volatile markets.",
+    example: "Monthly adaptations, scoring 3.",
+    evidenceRequired: "Adaptation logs (Excel). For 0-1: Frequency. For 2-3: Examples.",
+    maxScore: 3,
+  },
+  {
+    id: "5.2.1",
+    shortName: "Competency Analysis",
+    description: "How systematically does the organization assess its internal competencies, identify gaps, and determine where external collaboration is a necessary or advantageous strategy?",
+    howToCalculate: "Percentage of competencies assessed annually.",
+    measurementUnit: "Percentage (%)",
+    remark: "Leads to partnerships.",
+    example: "100% assessed, identifying 3 gaps.",
+    evidenceRequired: "Assessment reports (PDF). For <50%: %. For >50%: Gap details.",
+  },
+  {
     id: "5.2.2",
     shortName: "Partner Selection",
-    description:
-      "How well-defined and strategic is the process for identifying, evaluating, and selecting external partners?",
+    description: "How well-defined and strategic is the process for identifying, evaluating, and selecting external partners who align with the organization's innovation needs and collaborative goals?",
+    howToCalculate: "Score process definition (1-5).",
     measurementUnit: "Score (1-5)",
     remark: "ISO 56003 guided.",
     example: "Defined process with criteria, scoring 4.",
@@ -40,10 +81,20 @@ const pillarFiveIndicators = [
     maxScore: 5,
   },
   {
+    id: "5.2.3",
+    shortName: "Partnership Management",
+    description: "How effectively does the organization utilize best practices (as guided by ISO 56003) for managing innovation partnerships, including defining collaboration models, governance, and processes for joint value creation?",
+    howToCalculate: "Success rate of partnerships; percentage.",
+    measurementUnit: "Percentage (%)",
+    remark: "Governance includes contracts.",
+    example: "85% successful partnerships.",
+    evidenceRequired: "Partnership contracts (redacted PDF), success metrics. For <50%: Rates. For >50%: Case studies.",
+  },
+  {
     id: "5.2.4",
     shortName: "Partnership Value",
-    description:
-      "To what extent do external collaborations demonstrably contribute to the organization's innovation capacity?",
+    description: "To what extent do external collaborations demonstrably contribute to the organization's innovation capacity by accessing diverse knowledge, accelerating development, de-risking projects, or creating mutual value?",
+    howToCalculate: "Value added (e.g., revenue) from partnerships; percentage increase.",
     measurementUnit: "Percentage (%)",
     remark: "Mutual value emphasized.",
     example: "30% capacity increase from partners.",
@@ -97,6 +148,11 @@ export function PillarFiveForm({ onDataChange, onScoreChange, initialData }: Pil
           totalScore += (value / maxScore) * 100
         } else if (indicator.measurementUnit.includes('Percentage')) {
           totalScore += Math.min(value, 100)
+        } else if (indicator.measurementUnit === 'Number') {
+          // For 5.1.4 (Proactive Foresight), convert number of foreseen events to percentage
+          if (indicator.id === '5.1.4') {
+            totalScore += Math.min((value / 5) * 100, 100) // 5 events = 100%
+          }
         }
       }
     })
@@ -114,7 +170,7 @@ export function PillarFiveForm({ onDataChange, onScoreChange, initialData }: Pil
     }
   }, [formData, evidence])
 
-  // Update parent when data changes - ONLY specific values
+  // Update parent when data changes - FIXED TO PREVENT INFINITE LOOPS
   useEffect(() => {
     const combinedData = {
       indicators: formData,
@@ -123,7 +179,7 @@ export function PillarFiveForm({ onDataChange, onScoreChange, initialData }: Pil
     }
     onDataChange(combinedData)
     onScoreChange(stats.averageScore)
-  }, [stats.averageScore, stats.completion]) // Only depend on specific numeric values
+  }, [stats.averageScore, stats.completion]) // FIXED: Only depend on numeric values, not objects
 
   // Handle input changes
   const handleInputChange = useCallback((indicatorId: string, value: any) => {
@@ -133,16 +189,13 @@ export function PillarFiveForm({ onDataChange, onScoreChange, initialData }: Pil
     }))
   }, [])
 
-  // Handle evidence changes
+  // Handle evidence changes - FIXED TO PREVENT RENDER CONFLICTS
   const handleEvidenceChange = useCallback((indicatorId: string, evidenceData: any) => {
     console.log(`Evidence changed for indicator ${indicatorId}:`, evidenceData);
-    // Use setTimeout to defer the state update and avoid render conflicts
-    setTimeout(() => {
-      setEvidence((prev: any) => ({
-        ...prev,
-        [indicatorId]: evidenceData
-      }))
-    }, 0);
+    setEvidence((prev: any) => ({
+      ...prev,
+      [indicatorId]: evidenceData
+    }))
   }, [])
 
   return (

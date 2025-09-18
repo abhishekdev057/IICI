@@ -26,7 +26,7 @@ export interface PillarScore {
 export interface OverallScore {
   pillars: PillarScore[]
   overallScore: number // 0-100 percentage
-  certificationLevel: "Gold" | "Certified" | "Not Certified"
+  certificationLevel: "GOLD" | "CERTIFIED" | "NOT_CERTIFIED"
   recommendations: string[]
 }
 
@@ -46,19 +46,39 @@ export class ScoringEngine {
 
     switch (true) {
       case measurementUnit.includes("Binary"):
-        return Number(rawValue) // Already 0 or 1
+        const binaryResult = Number(rawValue)
+        return isNaN(binaryResult) ? 0 : binaryResult
 
       case measurementUnit.includes("Score"):
         const max = maxScore || this.extractMaxFromUnit(measurementUnit)
         const min = measurementUnit.includes("(1-5)") ? 1 : 0
-        return Math.max(0, Math.min(1, (Number(rawValue) - min) / (max - min)))
+        const scoreResult = Math.max(0, Math.min(1, (Number(rawValue) - min) / (max - min)))
+        return isNaN(scoreResult) ? 0 : scoreResult
 
       case measurementUnit.includes("Percentage"):
-        return Math.max(0, Math.min(1, Number(rawValue) / 100))
+        const percentageResult = Math.max(0, Math.min(1, Number(rawValue) / 100))
+        return isNaN(percentageResult) ? 0 : percentageResult
 
       case measurementUnit.includes("Number") || measurementUnit.includes("Hours"):
         // Normalize using benchmarks or caps
-        return this.normalizeNumberValue(Number(rawValue), measurementUnit)
+        const numberResult = this.normalizeNumberValue(Number(rawValue), measurementUnit)
+        return isNaN(numberResult) ? 0 : numberResult
+
+      case measurementUnit === "Ratio":
+        // For ratio indicators, convert to percentage (assuming higher ratio is better)
+        if (typeof rawValue === 'string' && rawValue.includes(':')) {
+          const [proactive, reactive] = rawValue.split(':').map(Number)
+          const total = proactive + reactive
+          const ratioResult = total > 0 ? (proactive / total) : 0
+          return isNaN(ratioResult) ? 0 : ratioResult
+        }
+        const ratioResult2 = Math.min(Number(rawValue), 1)
+        return isNaN(ratioResult2) ? 0 : ratioResult2
+
+      case measurementUnit.includes("Hours per employee"):
+        // Convert hours to percentage (assuming 40 hours is 100%)
+        const hoursResult = Math.min(Number(rawValue) / 40, 1)
+        return isNaN(hoursResult) ? 0 : hoursResult
 
       default:
         return 0
@@ -83,24 +103,32 @@ export class ScoringEngine {
    * Normalize number values using benchmarks
    */
   private static normalizeNumberValue(value: number, measurementUnit: string): number {
-    // Define benchmarks for different number types
+    // Check for NaN or invalid values
+    if (isNaN(value) || !isFinite(value)) return 0
+    
+    // Define benchmarks for different number types based on new indicators
     const benchmarks: { [key: string]: number } = {
-      ideas: 200, // 200 ideas per quarter = 100%
-      hours: 40, // 40 hours training per year = 100%
-      sources: 10, // 10+ sources = 100%
-      audits: 2, // 2 audits per year = 100%
-      updates: 4, // 4 updates per year = 100%
+      ideas: 200, // 200 ideas per quarter = 100% (3.2.1)
+      hours: 40, // 40 hours training per year = 100% (2.2.3)
+      sources: 10, // 10+ sources = 100% (5.1.1)
+      audits: 2, // 2 audits per year = 100% (6.2.2)
+      updates: 4, // 4 updates per year = 100% (6.3.3)
+      adaptations: 5, // 5 adaptations per project = 100% (3.3.2)
+      iterations: 5, // 5 iteration cycles = 100% (3.3.3)
+      events: 5, // 5 foreseen events = 100% (5.1.4)
     }
 
     // Try to match measurement unit to benchmark
     for (const [key, benchmark] of Object.entries(benchmarks)) {
       if (measurementUnit.toLowerCase().includes(key)) {
-        return Math.min(1, value / benchmark)
+        const result = Math.min(1, value / benchmark)
+        return isNaN(result) ? 0 : result
       }
     }
 
     // Default: cap at 1 for values >= 100
-    return Math.min(1, value / 100)
+    const result = Math.min(1, value / 100)
+    return isNaN(result) ? 0 : result
   }
 
   /**
@@ -127,8 +155,13 @@ export class ScoringEngine {
   static calculateSubPillarScore(indicators: IndicatorScore[]): number {
     if (indicators.length === 0) return 0
 
-    const sum = indicators.reduce((total, indicator) => total + indicator.normalizedScore, 0)
-    return sum / indicators.length
+    const sum = indicators.reduce((total, indicator) => {
+      const score = isNaN(indicator.normalizedScore) ? 0 : indicator.normalizedScore
+      return total + score
+    }, 0)
+    
+    const average = indicators.length > 0 ? sum / indicators.length : 0
+    return isNaN(average) ? 0 : average
   }
 
   /**
@@ -137,8 +170,15 @@ export class ScoringEngine {
   static calculatePillarScore(subPillars: SubPillarScore[]): number {
     if (subPillars.length === 0) return 0
 
-    const sum = subPillars.reduce((total, subPillar) => total + subPillar.averageScore, 0)
-    return (sum / subPillars.length) * 100 // Convert to percentage
+    const sum = subPillars.reduce((total, subPillar) => {
+      const score = isNaN(subPillar.averageScore) ? 0 : subPillar.averageScore
+      return total + score
+    }, 0)
+    
+    const average = subPillars.length > 0 ? sum / subPillars.length : 0
+    const percentage = average * 100 // Convert to percentage
+    
+    return isNaN(percentage) ? 0 : percentage
   }
 
   /**
@@ -149,20 +189,27 @@ export class ScoringEngine {
       return {
         pillars,
         overallScore: 0,
-        certificationLevel: "Not Certified",
+        certificationLevel: "NOT_CERTIFIED",
         recommendations: ["Complete all pillar assessments to receive certification."],
       }
     }
 
-    const sum = pillars.reduce((total, pillar) => total + pillar.averageScore, 0)
-    const overallScore = sum / pillars.length
+    const sum = pillars.reduce((total, pillar) => {
+      const score = isNaN(pillar.averageScore) ? 0 : pillar.averageScore
+      return total + score
+    }, 0)
+    
+    const overallScore = pillars.length > 0 ? sum / pillars.length : 0
+    
+    // Ensure we don't return NaN
+    const validOverallScore = isNaN(overallScore) ? 0 : overallScore
 
-    const certificationLevel = this.determineCertificationLevel(overallScore)
-    const recommendations = this.generateRecommendations(pillars, overallScore)
+    const certificationLevel = this.determineCertificationLevel(validOverallScore)
+    const recommendations = this.generateRecommendations(pillars, validOverallScore)
 
     return {
       pillars,
-      overallScore,
+      overallScore: validOverallScore,
       certificationLevel,
       recommendations,
     }
@@ -171,10 +218,10 @@ export class ScoringEngine {
   /**
    * Determine certification level based on score
    */
-  private static determineCertificationLevel(score: number): "Gold" | "Certified" | "Not Certified" {
-    if (score >= 85) return "Gold"
-    if (score >= 70) return "Certified"
-    return "Not Certified"
+  private static determineCertificationLevel(score: number): "GOLD" | "CERTIFIED" | "NOT_CERTIFIED" {
+    if (score >= 85) return "GOLD"
+    if (score >= 70) return "CERTIFIED"
+    return "NOT_CERTIFIED"
   }
 
   /**
@@ -300,44 +347,92 @@ export class ScoringEngine {
    * Get indicator definitions for a pillar
    */
   private static getPillarIndicators(pillarId: number): any[] {
-    // This would typically come from a database or configuration
-    // For now, return basic structure based on pillar ID
+    // Updated to match the new expanded pillar structure
     const indicatorsByPillar: { [key: number]: any[] } = {
       1: [
-        { id: "1.1.a", measurementUnit: "Score (0-2)", maxScore: 2 },
-        { id: "1.1.b", measurementUnit: "Percentage (%)" },
-        { id: "1.1.c", measurementUnit: "Score (0-2)", maxScore: 2 },
-        { id: "1.1.d", measurementUnit: "Percentage (%)" },
+        { id: "1.1.1", measurementUnit: "Score (0-2)", maxScore: 2 },
+        { id: "1.1.2", measurementUnit: "Percentage (%)" },
+        { id: "1.1.3", measurementUnit: "Score (0-2)", maxScore: 2 },
+        { id: "1.1.4", measurementUnit: "Percentage (%)" },
+        { id: "1.2.1", measurementUnit: "Binary (0-1)", maxScore: 1 },
+        { id: "1.2.2", measurementUnit: "Percentage (%)" },
+        { id: "1.2.3", measurementUnit: "Percentage (%)" },
+        { id: "1.2.4", measurementUnit: "Score (1-5)", maxScore: 5 },
+        { id: "1.3.1", measurementUnit: "Score (0-3)", maxScore: 3 },
+        { id: "1.3.2", measurementUnit: "Percentage (%)" },
+        { id: "1.3.3", measurementUnit: "Score (0-2)", maxScore: 2 },
+        { id: "1.3.4", measurementUnit: "Percentage (%)" },
+        { id: "1.4.1", measurementUnit: "Score (0-3)", maxScore: 3 },
+        { id: "1.4.2", measurementUnit: "Percentage (%)" },
+        { id: "1.4.3", measurementUnit: "Binary (0-1)", maxScore: 1 },
+        { id: "1.4.4", measurementUnit: "Score (0-2)", maxScore: 2 },
       ],
       2: [
         { id: "2.1.1", measurementUnit: "Percentage (%)" },
         { id: "2.1.2", measurementUnit: "Percentage (%)" },
+        { id: "2.1.3", measurementUnit: "Score (1-5)", maxScore: 5 },
         { id: "2.2.1", measurementUnit: "Percentage (%)" },
         { id: "2.2.2", measurementUnit: "Percentage (%)" },
+        { id: "2.2.3", measurementUnit: "Hours per employee" },
+        { id: "2.2.4", measurementUnit: "Score (0-3)", maxScore: 3 },
+        { id: "2.2.5", measurementUnit: "Percentage (%)" },
+        { id: "2.3.1", measurementUnit: "Percentage (%)" },
+        { id: "2.3.2", measurementUnit: "Score (1-5)", maxScore: 5 },
+        { id: "2.3.3", measurementUnit: "Percentage (%)" },
+        { id: "2.3.4", measurementUnit: "Score (1-5)", maxScore: 5 },
       ],
       3: [
         { id: "3.1.1", measurementUnit: "Score (1-5)", maxScore: 5 },
+        { id: "3.1.2", measurementUnit: "Percentage (%)" },
+        { id: "3.1.3", measurementUnit: "Percentage (%)" },
+        { id: "3.1.4", measurementUnit: "Score (1-5)", maxScore: 5 },
         { id: "3.2.1", measurementUnit: "Number" },
+        { id: "3.2.2", measurementUnit: "Percentage (%)" },
+        { id: "3.2.3", measurementUnit: "Binary (0-1)", maxScore: 1 },
+        { id: "3.3.1", measurementUnit: "Percentage (%)" },
+        { id: "3.3.2", measurementUnit: "Number" },
+        { id: "3.3.3", measurementUnit: "Number" },
         { id: "3.4.1", measurementUnit: "Score (1-5)", maxScore: 5 },
         { id: "3.4.2", measurementUnit: "Percentage (%)" },
+        { id: "3.4.3", measurementUnit: "Score (0-3)", maxScore: 3 },
+        { id: "3.4.4", measurementUnit: "Score (1-5)", maxScore: 5 },
+        { id: "3.5.1", measurementUnit: "Percentage (%)" },
+        { id: "3.5.2", measurementUnit: "Percentage (%)" },
       ],
       4: [
         { id: "4.1.1", measurementUnit: "Score (1-5)", maxScore: 5 },
+        { id: "4.1.2", measurementUnit: "Ratio" },
+        { id: "4.1.3", measurementUnit: "Percentage (%)" },
         { id: "4.2.1", measurementUnit: "Percentage (%)" },
+        { id: "4.2.2", measurementUnit: "Score (1-5)", maxScore: 5 },
         { id: "4.2.3", measurementUnit: "Percentage (%)" },
+        { id: "4.3.1", measurementUnit: "Score (0-3)", maxScore: 3 },
+        { id: "4.3.2", measurementUnit: "Percentage (%)" },
+        { id: "4.4.1", measurementUnit: "Percentage (%)" },
         { id: "4.4.2", measurementUnit: "Score (1-5)", maxScore: 5 },
+        { id: "4.4.3", measurementUnit: "Score (1-5)", maxScore: 5 },
       ],
       5: [
         { id: "5.1.1", measurementUnit: "Score (1-5)", maxScore: 5 },
+        { id: "5.1.2", measurementUnit: "Percentage (%)" },
         { id: "5.1.3", measurementUnit: "Percentage (%)" },
+        { id: "5.1.4", measurementUnit: "Number" },
+        { id: "5.1.5", measurementUnit: "Score (0-3)", maxScore: 3 },
+        { id: "5.2.1", measurementUnit: "Percentage (%)" },
         { id: "5.2.2", measurementUnit: "Score (1-5)", maxScore: 5 },
+        { id: "5.2.3", measurementUnit: "Percentage (%)" },
         { id: "5.2.4", measurementUnit: "Percentage (%)" },
       ],
       6: [
         { id: "6.1.1", measurementUnit: "Percentage (%)" },
         { id: "6.1.2", measurementUnit: "Percentage (%)" },
+        { id: "6.1.3", measurementUnit: "Score (1-5)", maxScore: 5 },
         { id: "6.2.1", measurementUnit: "Score (0-3)", maxScore: 3 },
+        { id: "6.2.2", measurementUnit: "Number" },
+        { id: "6.2.3", measurementUnit: "Score (1-5)", maxScore: 5 },
         { id: "6.3.1", measurementUnit: "Percentage (%)" },
+        { id: "6.3.2", measurementUnit: "Percentage (%)" },
+        { id: "6.3.3", measurementUnit: "Number" },
       ],
     }
 

@@ -1,47 +1,109 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Building2, Calendar, Award, AlertCircle } from "lucide-react"
-import { useData } from "@/contexts/data-context"
 import { Navigation } from "@/components/layout/navigation"
 import { Footer } from "@/components/layout/footer"
 import { OverviewCharts } from "@/components/dashboard/overview-charts"
 import { PillarDetails } from "@/components/dashboard/pillar-details"
 import { ExportReports } from "@/components/dashboard/export-reports"
 import { HistoricalTracking } from "@/components/dashboard/historical-tracking"
-import { DataProvider } from "@/contexts/data-context"
+import { RatingDisplay, RatingDisplayCompact } from "@/components/dashboard/rating-display"
+import { EnhancedRatingDisplay } from "@/components/dashboard/enhanced-rating-display"
+import { SubPillarDetails } from "@/components/dashboard/subpillar-details"
+import { useSession } from "next-auth/react"
 
 // Helper functions for indicator data
 const getIndicatorShortName = (indicatorId: string): string => {
   const definitions = {
-    "1.1.a": "Formal Innovation Intent",
-    "1.1.b": "Strategy Alignment",
-    "1.1.c": "Innovation Priorities",
-    "1.1.d": "Intent Communication",
+    // Pillar 1
+    "1.1.1": "Formal Innovation Intent",
+    "1.1.2": "Strategy Alignment",
+    "1.1.3": "Innovation Priorities",
+    "1.1.4": "Intent Communication",
+    "1.2.1": "IMS Champion",
+    "1.2.2": "Leadership Engagement",
+    "1.2.3": "Budget Allocation",
+    "1.2.4": "Innovation Mindset Promotion",
+    "1.3.1": "Innovation Policy",
+    "1.3.2": "Policy Communication",
+    "1.3.3": "IP Strategy Presence",
+    "1.3.4": "IP Alignment",
+    "1.4.1": "Internal Feedback Process",
+    "1.4.2": "External Intelligence Gathering",
+    "1.4.3": "Strategy Adjustment Mechanism",
+    "1.4.4": "Strategic Pivot Example",
+    
+    // Pillar 2
     "2.1.1": "Innovation Budget",
     "2.1.2": "IP Investment",
+    "2.1.3": "Funding Accessibility",
     "2.2.1": "Personnel Allocation",
     "2.2.2": "Dedicated Innovation Time",
-    "3.1.1": "Innovation Processes",
+    "2.2.3": "Training Programs",
+    "2.2.4": "Competency Assessment",
+    "2.2.5": "Skill Gap Strategy",
+    "2.3.1": "IMS Tools Adoption",
+    "2.3.2": "Idea Tracking Effectiveness",
+    "2.3.3": "Physical Infrastructure",
+    "2.3.4": "Management Resource Support",
+    
+    // Pillar 3
+    "3.1.1": "Process Maturity",
+    "3.1.2": "Role Clarity",
+    "3.1.3": "Progress Tracking",
+    "3.1.4": "Output Efficiency",
     "3.2.1": "Idea Capture",
+    "3.2.2": "Evaluation Criteria",
+    "3.2.3": "Idea Pathway",
+    "3.3.1": "Hypothesis Testing",
+    "3.3.2": "Concept Adaptation",
+    "3.3.3": "Continuous Iteration",
     "3.4.1": "Creative Encouragement",
     "3.4.2": "Psychological Safety",
-    "4.1.1": "IP Strategy",
+    "3.4.3": "Culture Assessment",
+    "3.4.4": "Process-Culture Synergy",
+    "3.5.1": "Strategy Communication",
+    "3.5.2": "Employee Alignment",
+    
+    // Pillar 4
+    "4.1.1": "IP Strategy Formalization",
+    "4.1.2": "Proactive IP Value",
+    "4.1.3": "Environmental IP Integration",
     "4.2.1": "IP Identification",
+    "4.2.2": "IP Protection Process",
     "4.2.3": "IP Exploitation",
+    "4.3.1": "IP Risk Assessment",
+    "4.3.2": "IP Risk Mitigation",
+    "4.4.1": "Intelligence Management",
     "4.4.2": "Knowledge Sharing",
-    "5.1.1": "Intelligence Sources",
+    "4.4.3": "Knowledge-IP Integration",
+    
+    // Pillar 5
+    "5.1.1": "Intelligence Gathering",
+    "5.1.2": "Analysis Synthesis",
     "5.1.3": "Informed Decisions",
+    "5.1.4": "Proactive Foresight",
+    "5.1.5": "Monitoring Adaptation",
+    "5.2.1": "Competency Analysis",
     "5.2.2": "Partner Selection",
+    "5.2.3": "Partnership Management",
     "5.2.4": "Partnership Value",
-    "6.1.1": "Performance Metrics",
+    
+    // Pillar 6
+    "6.1.1": "Metric Implementation",
     "6.1.2": "Data-Driven Decisions",
+    "6.1.3": "Data Collection",
     "6.2.1": "IMS Assessment",
-    "6.3.1": "Feedback Loop"
+    "6.2.2": "Formal Audits",
+    "6.2.3": "Maturity Assessment",
+    "6.3.1": "Feedback Loop",
+    "6.3.2": "Corrective Actions",
+    "6.3.3": "System Evolution"
   }
   return definitions[indicatorId as keyof typeof definitions] || indicatorId
 }
@@ -111,13 +173,72 @@ const getNormalizedScore = (indicatorId: string, value: any): number => {
 }
 
 function DashboardContent() {
-  const { state, calculateScores } = useData()
+  const { data: session, status } = useSession()
+  const [dashboardData, setDashboardData] = useState<any>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  const application = state.currentApplication
-  const institutionData = application?.institutionData
-  const scores = application?.scores
-  const isLoading = state.isLoading
-  const error = state.error
+  // Fetch dashboard data
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      if (status === 'loading') return
+      if (!session?.user) {
+        setError('Please log in to view your dashboard')
+        setIsLoading(false)
+        return
+      }
+
+      try {
+        setIsLoading(true)
+        setError(null)
+        
+        const response = await fetch('/api/dashboard')
+        if (!response.ok) {
+          throw new Error(`Failed to fetch dashboard data: ${response.status}`)
+        }
+        
+        const result = await response.json()
+        if (result.success) {
+          setDashboardData(result.data)
+        } else {
+          throw new Error(result.error || 'Failed to load dashboard data')
+        }
+      } catch (err) {
+        console.error('Dashboard fetch error:', err)
+        setError(err instanceof Error ? err.message : 'Failed to load dashboard data')
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchDashboardData()
+  }, [session, status])
+
+  const application = dashboardData?.application
+  const institutionData = dashboardData?.institutionData
+  const scores = dashboardData?.scores
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Navigation variant="dashboard" title="IIICI Dashboard" />
+        <div className="flex items-center justify-center min-h-[80vh]">
+          <Card className="max-w-md">
+            <CardHeader>
+              <CardTitle>Loading Dashboard...</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-muted-foreground">
+                Fetching your assessment data...
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+        <Footer variant="minimal" />
+      </div>
+    )
+  }
 
   // Add error boundary for dashboard
   if (error) {
@@ -165,24 +286,6 @@ function DashboardContent() {
     error
   })
 
-  useEffect(() => {
-    if (application && !scores && application.pillarData) {
-      calculateScores()
-    }
-  }, [application, scores, calculateScores])
-
-  // Don't show loading screen for submitted applications - show dashboard immediately
-  if (isLoading && !application?.status) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading your dashboard...</p>
-        </div>
-      </div>
-    )
-  }
-
   if (!application) {
     return (
       <div className="min-h-screen bg-background">
@@ -214,9 +317,20 @@ function DashboardContent() {
   }
 
   // Check if application is in a state that allows dashboard access
-  const canViewDashboard = application.status === "submitted" || application.status === "under_review" || application.status === "certified" || application.status === "approved" || application.status === "draft"
+  const canViewDashboard = application.status === "SUBMITTED" || application.status === "UNDER_REVIEW" || application.status === "APPROVED" || application.status === "DRAFT"
   
-  if (!canViewDashboard) {
+  // Debug logging
+  console.log("Dashboard Status Check:", {
+    applicationStatus: application.status,
+    canViewDashboard,
+    applicationId: application.id,
+    dashboardData: !!dashboardData
+  })
+  
+  // Check if we have dashboard data even if status check fails
+  const hasDashboardData = dashboardData && (dashboardData.pillarData || dashboardData.indicators || dashboardData.scores)
+  
+  if (!canViewDashboard && !hasDashboardData) {
     return (
       <div className="min-h-screen bg-background">
         <Navigation variant="dashboard" title="IIICI Dashboard" />
@@ -246,15 +360,8 @@ function DashboardContent() {
     )
   }
 
-  // Get pillar scores from database or calculate from pillar data
-  const pillarScores = scores?.pillarScores || application?.pillarData ? 
-    Array.from({ length: 6 }, (_, i) => {
-      const pillarKey = `pillar_${i + 1}`
-      const pillar = application?.pillarData?.[pillarKey]
-      const score = pillar?.stats?.averageScore || 0
-      return score
-    }) : [0, 0, 0, 0, 0, 0]
-
+  // Get pillar scores from dashboard data
+  const pillarScores = scores?.pillarScores || [0, 0, 0, 0, 0, 0]
   const overallScore = scores?.overallScore ?? 0
   
   // Calculate certification level based on overall score
@@ -277,14 +384,14 @@ function DashboardContent() {
 
   const displayCertificationLevel = getDisplayCertificationLevel(certificationLevel)
 
-  // Build comprehensive dashboard data from database
-  const dashboardData = {
+  // Build comprehensive dashboard data from API response
+  const processedDashboardData = {
     overallScore,
     certificationLevel: displayCertificationLevel,
     pillars: Array.from({ length: 6 }, (_, i) => {
       const pillarId = i + 1
       const pillarKey = `pillar_${pillarId}`
-      const pillar = application?.pillarData?.[pillarKey]
+      const pillar = dashboardData?.pillarData?.[pillarKey]
       
       const pillarNames = {
         1: "Strategic Foundation & Leadership",
@@ -333,7 +440,7 @@ function DashboardContent() {
       overallScore: overallScore,
       certificationLevel: getDisplayCertificationLevel(certificationLevel),
       pillarScores: pillarScores,
-      submittedDate: dashboardData.issuedDate,
+      submittedDate: processedDashboardData.issuedDate,
     },
   ]
 
@@ -429,6 +536,34 @@ function DashboardContent() {
                     <span className="text-muted-foreground">{institutionData.contactEmail}</span>
                   </div>
                 </div>
+                
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Enhanced Innovation Maturity Rating */}
+        <EnhancedRatingDisplay 
+          score={overallScore}
+          certificationLevel={displayCertificationLevel}
+          className="mb-8"
+        />
+
+        {/* Draft Status Banner */}
+        {application.status === "DRAFT" && (
+          <Card className="mb-6 border-amber-200 bg-amber-50">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <AlertCircle className="h-5 w-5 text-amber-600" />
+                <div className="flex-1">
+                  <h3 className="font-semibold text-amber-800">Assessment Ready for Submission</h3>
+                  <p className="text-sm text-amber-700 mt-1">
+                    Your assessment is complete! Submit it to receive your official certification and unlock all dashboard features.
+                  </p>
+                </div>
+                <Button asChild className="bg-amber-600 hover:bg-amber-700">
+                  <a href="/application">Submit Assessment</a>
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -449,12 +584,12 @@ function DashboardContent() {
           </div>
         </div>
 
-        {state.error && (
+        {error && (
           <Card className="mb-6 border-destructive">
             <CardContent className="pt-6">
               <div className="flex items-center gap-2 text-destructive">
                 <AlertCircle className="h-4 w-4" />
-                <span className="text-sm">{state.error}</span>
+                <span className="text-sm">{error}</span>
               </div>
             </CardContent>
           </Card>
@@ -468,18 +603,46 @@ function DashboardContent() {
             <TabsTrigger value="history" className="text-xs md:text-sm">History</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="overview">
+          <TabsContent value="overview" className="space-y-6">
             <OverviewCharts
               overallScore={overallScore}
               pillarScores={pillarScores}
               certificationLevel={displayCertificationLevel}
-              issuedDate={dashboardData.issuedDate}
-              expiryDate={dashboardData.expiryDate}
+              issuedDate={processedDashboardData.issuedDate}
+              expiryDate={processedDashboardData.expiryDate}
             />
           </TabsContent>
 
-          <TabsContent value="details">
-            <PillarDetails pillars={dashboardData.pillars} recommendations={dashboardData.recommendations} />
+          <TabsContent value="details" className="space-y-6">
+            {/* Pillar Details with Sub-Pillars */}
+            <div className="grid gap-6">
+              {processedDashboardData.pillars.map((pillar) => (
+                <SubPillarDetails
+                  key={pillar.id}
+                  pillarId={pillar.id}
+                  indicators={pillar.indicators}
+                />
+              ))}
+            </div>
+            
+            {/* Recommendations */}
+            {processedDashboardData.recommendations && processedDashboardData.recommendations.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Recommendations</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ul className="space-y-2">
+                    {processedDashboardData.recommendations.map((recommendation: string, index: number) => (
+                      <li key={index} className="flex items-start gap-2">
+                        <span className="text-primary mt-1">•</span>
+                        <span className="text-sm text-muted-foreground">{recommendation}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
           <TabsContent value="reports" id="reports">
@@ -488,7 +651,7 @@ function DashboardContent() {
               pillarScores={pillarScores}
               certificationLevel={displayCertificationLevel}
               organizationName={institutionData?.name || "Your Organization"}
-              issuedDate={dashboardData.issuedDate}
+              issuedDate={processedDashboardData.issuedDate}
             />
           </TabsContent>
 
@@ -504,9 +667,5 @@ function DashboardContent() {
 }
 
 export default function DashboardPage() {
-  return (
-    <DataProvider>
-      <DashboardContent />
-    </DataProvider>
-  )
+  return <DashboardContent />
 }
