@@ -97,12 +97,14 @@ export function CleanIndicatorInput({
       
       (updatedEvidence[type] as any)[field] = evidenceValue
       
-      // Call parent callback
-      onEvidenceChange(updatedEvidence)
-      
       return updatedEvidence
     })
-  }, [onEvidenceChange])
+  }, [])
+  
+  // Use effect to call parent callback when evidence changes
+  useEffect(() => {
+    onEvidenceChange(localEvidence)
+  }, [localEvidence, onEvidenceChange])
   
   // Handle file upload
   const handleFileUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -142,10 +144,16 @@ export function CleanIndicatorInput({
       setUploadProgress(100)
       
       // Update evidence with file information
-      handleEvidenceChange('file', 'fileName', file.name)
-      handleEvidenceChange('file', 'fileSize', file.size)
-      handleEvidenceChange('file', 'fileType', file.type)
-      handleEvidenceChange('file', 'url', URL.createObjectURL(file))
+      setLocalEvidence(prev => ({
+        ...prev,
+        file: {
+          ...prev.file,
+          fileName: file.name,
+          fileSize: file.size,
+          fileType: file.type,
+          url: URL.createObjectURL(file)
+        }
+      }))
       
       toast({
         title: "File Uploaded",
@@ -162,17 +170,16 @@ export function CleanIndicatorInput({
       setIsUploading(false)
       setUploadProgress(0)
     }
-  }, [handleEvidenceChange, toast])
+  }, [toast])
   
   // Remove evidence type
   const removeEvidenceType = useCallback((type: 'text' | 'link' | 'file') => {
     setLocalEvidence(prev => {
       const updatedEvidence = { ...prev }
       delete updatedEvidence[type]
-      onEvidenceChange(updatedEvidence)
       return updatedEvidence
     })
-  }, [onEvidenceChange])
+  }, [])
   
   // Calculate progress
   const hasValue = localValue !== null && localValue !== undefined && localValue !== ""
