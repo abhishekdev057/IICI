@@ -6,11 +6,11 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { useData } from "@/contexts/data-context"
+import { useApplication } from "@/contexts/application-context"
 import { Building2, Upload, X, Image } from "lucide-react"
 
 export function InstitutionSetup() {
-  const { state, updateInstitution } = useData()
+  const { state, updateInstitution } = useApplication()
   const [formData, setFormData] = useState({
     name: "",
     industry: "",
@@ -24,7 +24,7 @@ export function InstitutionSetup() {
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const application = state.currentApplication
+  const application = state.application
 
   useEffect(() => {
     if (application?.institutionData) {
