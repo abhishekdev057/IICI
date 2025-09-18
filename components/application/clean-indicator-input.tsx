@@ -9,6 +9,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Progress } from "@/components/ui/progress"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { 
   Upload, 
   Link, 
@@ -17,7 +19,8 @@ import {
   AlertCircle, 
   Info,
   Save,
-  X
+  X,
+  HelpCircle
 } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
 import { useApplication } from "@/contexts/application-context"
@@ -207,7 +210,7 @@ export function CleanIndicatorInput({
     if (measurementUnit.includes('Score')) {
       return (
         <div className="space-y-2">
-          <Label htmlFor={`${indicator.id}-score`}>Score (0-{maxScore})</Label>
+          <Label htmlFor={`${indicator.id}-score`}>Score (0-{maxScore}) <span className="text-red-500">*</span></Label>
           <Input
             id={`${indicator.id}-score`}
             type="number"
@@ -223,7 +226,7 @@ export function CleanIndicatorInput({
     } else if (measurementUnit.includes('Percentage')) {
       return (
         <div className="space-y-2">
-          <Label htmlFor={`${indicator.id}-percentage`}>Percentage (%)</Label>
+          <Label htmlFor={`${indicator.id}-percentage`}>Percentage (%) <span className="text-red-500">*</span></Label>
           <Input
             id={`${indicator.id}-percentage`}
             type="number"
@@ -239,7 +242,7 @@ export function CleanIndicatorInput({
     } else if (measurementUnit.includes('Binary')) {
       return (
         <div className="space-y-2">
-          <Label>Binary Choice</Label>
+          <Label>Binary Choice <span className="text-red-500">*</span></Label>
           <div className="flex gap-4">
             <Button
               variant={localValue === 1 ? "default" : "outline"}
@@ -261,7 +264,7 @@ export function CleanIndicatorInput({
     } else if (measurementUnit === 'Ratio') {
       return (
         <div className="space-y-2">
-          <Label htmlFor={`${indicator.id}-ratio`}>Ratio (e.g., 3:1)</Label>
+          <Label htmlFor={`${indicator.id}-ratio`}>Ratio (e.g., 3:1) <span className="text-red-500">*</span></Label>
           <Input
             id={`${indicator.id}-ratio`}
             type="text"
@@ -274,7 +277,7 @@ export function CleanIndicatorInput({
     } else if (measurementUnit.includes('Hours per employee')) {
       return (
         <div className="space-y-2">
-          <Label htmlFor={`${indicator.id}-hours`}>Hours per Employee</Label>
+          <Label htmlFor={`${indicator.id}-hours`}>Hours per Employee <span className="text-red-500">*</span></Label>
           <Input
             id={`${indicator.id}-hours`}
             type="number"
@@ -289,7 +292,7 @@ export function CleanIndicatorInput({
     } else if (measurementUnit === 'Number') {
       return (
         <div className="space-y-2">
-          <Label htmlFor={`${indicator.id}-number`}>Number</Label>
+          <Label htmlFor={`${indicator.id}-number`}>Number <span className="text-red-500">*</span></Label>
           <Input
             id={`${indicator.id}-number`}
             type="number"
@@ -303,7 +306,7 @@ export function CleanIndicatorInput({
     } else {
       return (
         <div className="space-y-2">
-          <Label htmlFor={`${indicator.id}-text`}>Value</Label>
+          <Label htmlFor={`${indicator.id}-text`}>Value <span className="text-red-500">*</span></Label>
           <Input
             id={`${indicator.id}-text`}
             type="text"
@@ -324,10 +327,57 @@ export function CleanIndicatorInput({
             <CardTitle className="text-lg flex items-center gap-2">
               <span className="font-mono text-sm text-muted-foreground">{indicator.id}</span>
               {indicator.shortName}
+              <span className="text-red-500 text-lg">*</span>
             </CardTitle>
             <p className="text-sm text-muted-foreground">{indicator.description}</p>
           </div>
-          {getStatusBadge()}
+          <div className="flex items-center gap-2">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                        <HelpCircle className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-2xl">
+                      <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                          <Info className="h-5 w-5" />
+                          Instructions for {indicator.shortName}
+                        </DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <div>
+                          <h4 className="font-medium mb-2">How to Calculate</h4>
+                          <p className="text-sm text-muted-foreground bg-muted p-3 rounded-md">
+                            {indicator.howToCalculate}
+                          </p>
+                        </div>
+                        <div>
+                          <h4 className="font-medium mb-2">Example</h4>
+                          <p className="text-sm text-muted-foreground bg-muted p-3 rounded-md">
+                            {indicator.example}
+                          </p>
+                        </div>
+                        <div>
+                          <h4 className="font-medium mb-2">Remark</h4>
+                          <p className="text-sm text-muted-foreground bg-muted p-3 rounded-md">
+                            {indicator.remark}
+                          </p>
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>View calculation instructions</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            {getStatusBadge()}
+          </div>
         </div>
         
         {/* Progress bar */}
@@ -349,33 +399,6 @@ export function CleanIndicatorInput({
           
           <TabsContent value="input" className="space-y-4">
             {renderInput()}
-            
-            {/* How to calculate */}
-            <div className="space-y-2">
-              <Label className="flex items-center gap-2">
-                <Info className="h-4 w-4" />
-                How to Calculate
-              </Label>
-              <p className="text-sm text-muted-foreground bg-muted p-3 rounded-md">
-                {indicator.howToCalculate}
-              </p>
-            </div>
-            
-            {/* Example */}
-            <div className="space-y-2">
-              <Label>Example</Label>
-              <p className="text-sm text-muted-foreground bg-muted p-3 rounded-md">
-                {indicator.example}
-              </p>
-            </div>
-            
-            {/* Remark */}
-            <div className="space-y-2">
-              <Label>Remark</Label>
-              <p className="text-sm text-muted-foreground bg-muted p-3 rounded-md">
-                {indicator.remark}
-              </p>
-            </div>
           </TabsContent>
           
           <TabsContent value="evidence" className="space-y-4">

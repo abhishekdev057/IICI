@@ -214,6 +214,32 @@ const calculatePillarProgress = (pillarData: PillarData, pillarId: number): { co
   return { completion, score };
 };
 
+// Helper function to get next incomplete step
+const getNextIncompleteStepHelper = (application: ApplicationData): number => {
+  // Check institution setup first
+  const institutionComplete = !!(
+    application.institutionData.name &&
+    application.institutionData.industry &&
+    application.institutionData.organizationSize &&
+    application.institutionData.country &&
+    application.institutionData.contactEmail
+  );
+  
+  if (!institutionComplete) return 0;
+  
+  // Check each pillar
+  for (let pillarId = 1; pillarId <= 6; pillarId++) {
+    const pillarKey = `pillar_${pillarId}`;
+    const pillarData = application.pillarData[pillarKey];
+    
+    if (!pillarData || pillarData.completion < 100) {
+      return pillarId;
+    }
+  }
+  
+  return 6; // All steps completed
+};
+
 // Application Provider
 export function ApplicationProvider({ children }: { children: ReactNode }) {
   const { data: session } = useSession();
@@ -301,8 +327,8 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
           currentStep: 0, // Will be calculated based on completion
         };
         
-        // Calculate current step based on completion
-        const nextIncompleteStep = getNextIncompleteStep(applicationData);
+        // Navigate to the first incomplete step on refresh
+        const nextIncompleteStep = getNextIncompleteStepHelper(applicationData);
         applicationData.currentStep = nextIncompleteStep;
         
         setState(prev => ({
@@ -651,11 +677,23 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
     
     // Check if previous steps are completed
     for (let i = 0; i < step; i++) {
-      if (i === 0) continue; // Skip institution setup
+      if (i === 0) {
+        // Check institution setup completion
+        const inst = state.application.institutionData;
+        const institutionComplete = !!(
+          inst.name?.trim() &&
+          inst.industry?.trim() &&
+          inst.organizationSize?.trim() &&
+          inst.country?.trim() &&
+          inst.contactEmail?.trim()
+        );
+        if (!institutionComplete) return false;
+        continue;
+      }
       
       const pillarId = i;
       const progress = getPillarProgress(pillarId);
-      if (progress.completion < 80) return false;
+      if (progress.completion < 100) return false;
     }
     
     return true;
@@ -666,28 +704,7 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
     const app = application || state.application;
     if (!app) return 0;
     
-    // Check institution setup first
-    const institutionComplete = !!(
-      app.institutionData.name &&
-      app.institutionData.industry &&
-      app.institutionData.organizationSize &&
-      app.institutionData.country &&
-      app.institutionData.contactEmail
-    );
-    
-    if (!institutionComplete) return 0;
-    
-    // Check each pillar
-    for (let pillarId = 1; pillarId <= 6; pillarId++) {
-      const pillarKey = `pillar_${pillarId}`;
-      const pillarData = app.pillarData[pillarKey];
-      
-      if (!pillarData || pillarData.completion < 80) {
-        return pillarId;
-      }
-    }
-    
-    return 6; // All steps completed
+    return getNextIncompleteStepHelper(app);
   }, [state.application]);
   
   // Submit application

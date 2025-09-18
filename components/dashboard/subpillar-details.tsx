@@ -159,10 +159,10 @@ export function SubPillarDetails({ pillarId, indicators, className }: SubPillarD
                           </div>
                           <div className="text-right">
                             <div className="text-sm font-medium">
-                              {Math.round(indicator.normalizedScore * 100)}%
+                              {Math.round(indicator.normalizedScore)}%
                             </div>
                             <div className="w-12">
-                              <Progress value={indicator.normalizedScore * 100} className="h-1" />
+                              <Progress value={indicator.normalizedScore} className="h-1" />
                             </div>
                           </div>
                         </div>

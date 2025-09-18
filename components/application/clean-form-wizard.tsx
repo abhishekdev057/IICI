@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { 
   CheckCircle, 
   Clock, 
@@ -24,7 +25,8 @@ import {
   Lightbulb,
   BookOpen,
   Network,
-  TrendingUp
+  TrendingUp,
+  Info
 } from "lucide-react"
 import { useApplication } from "@/contexts/application-context"
 import { useToast } from "@/components/ui/use-toast"
@@ -107,6 +109,7 @@ export function CleanFormWizard() {
   
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showSaveConfirmation, setShowSaveConfirmation] = useState(false)
+  const [showValidationDialog, setShowValidationDialog] = useState(false)
   
   const application = state.application
   
@@ -152,12 +155,7 @@ export function CleanFormWizard() {
   // Handle step navigation
   const goToStep = useCallback((stepIndex: number) => {
     if (stepIndex >= 0 && stepIndex < formSteps.length) {
-      const canGoBack = stepIndex < currentStep
-      const isCompleted = stepIndex === 0 ? 
-        !!(application.institutionData.name && application.institutionData.industry && application.institutionData.organizationSize && application.institutionData.country && application.institutionData.contactEmail) :
-        (stepIndex > 0 && stepIndex <= 6 && getPillarProgress(stepIndex).completion > 80)
-      
-      if (canNavigateToStep(stepIndex) || canGoBack || isCompleted) {
+      if (canNavigateToStep(stepIndex)) {
         setCurrentStep(stepIndex)
       } else {
         toast({
@@ -167,24 +165,59 @@ export function CleanFormWizard() {
         })
       }
     }
-  }, [canNavigateToStep, setCurrentStep, toast, currentStep, application, getPillarProgress])
+  }, [canNavigateToStep, setCurrentStep, toast])
   
+  // Check if current step has some progress (not requiring ALL indicators)
+  const isCurrentStepComplete = useCallback(() => {
+    if (!application) return false
+    
+    if (currentStep === 0) {
+      // Check institution setup - all required fields must be filled
+      const inst = application.institutionData
+      return !!(
+        inst.name?.trim() &&
+        inst.industry?.trim() &&
+        inst.organizationSize?.trim() &&
+        inst.country?.trim() &&
+        inst.contactEmail?.trim()
+      )
+    } else {
+      // Check pillar data - at least some indicators should be filled (not all)
+      const pillarData = application.pillarData?.[`pillar_${currentStep}`]
+      if (!pillarData) return false
+      
+      // Get all indicators for this pillar
+      const pillarStructure = require('@/lib/pillar-structure').PILLAR_STRUCTURE.find(p => p.id === currentStep)
+      if (!pillarStructure) return false
+      
+      // Check if ALL indicators have values
+      for (const subPillar of pillarStructure.subPillars) {
+        for (const indicatorId of subPillar.indicators) {
+          const value = pillarData.indicators?.[indicatorId]?.value
+          if (value === null || value === undefined || value === "") {
+            return false
+          }
+        }
+      }
+      return true
+    }
+  }, [application, currentStep])
+
   const goToNextStep = useCallback(() => {
     if (currentStep < formSteps.length - 1) {
-      const nextStep = currentStep + 1
-      if (canNavigateToStep(nextStep)) {
-        setCurrentStep(nextStep)
-      } else {
-        // Find next incomplete step
-        const nextIncomplete = getNextIncompleteStep()
-        setCurrentStep(nextIncomplete)
+      // Check if current step is complete
+      if (!isCurrentStepComplete()) {
+        setShowValidationDialog(true)
+        return
       }
+      
+      const nextStep = currentStep + 1
+      setCurrentStep(nextStep)
     }
-  }, [currentStep, canNavigateToStep, setCurrentStep, getNextIncompleteStep])
+  }, [currentStep, setCurrentStep, isCurrentStepComplete])
   
   const goToPreviousStep = useCallback(() => {
     if (currentStep > 0) {
-      // Allow going back to any previous step (no restrictions for going back)
       setCurrentStep(currentStep - 1)
     }
   }, [currentStep, setCurrentStep])
@@ -223,15 +256,7 @@ export function CleanFormWizard() {
     }
   }, [application, submitApplication, toast])
   
-  // Auto-navigate to next incomplete step when application loads
-  useEffect(() => {
-    if (application && !state.isLoading) {
-      const nextIncomplete = getNextIncompleteStep()
-      if (nextIncomplete !== currentStep) {
-        setCurrentStep(nextIncomplete)
-      }
-    }
-  }, [application, state.isLoading, getNextIncompleteStep, currentStep, setCurrentStep])
+  // Remove auto-navigation - let user manually navigate between steps
   
   // Show loading state
   if (state.isLoading) {
@@ -398,25 +423,22 @@ export function CleanFormWizard() {
                     const isActive = index === currentStep
                     const isCompleted = index === 0 ? 
                       !!(application.institutionData.name && application.institutionData.industry && application.institutionData.organizationSize && application.institutionData.country && application.institutionData.contactEmail) :
-                      (index > 0 && index <= 6 && getPillarProgress(index).completion > 80)
+                      (index > 0 && index <= 6 && getPillarProgress(index).completion >= 100)
                     const canNavigate = canNavigateToStep(index)
-                    const canGoBack = index < currentStep || isCompleted // Allow going back to previous steps
                     
                     return (
                       <button
                         key={step.id}
                         onClick={() => goToStep(index)}
-                        disabled={!canNavigate && !isActive && !canGoBack}
+                        disabled={!canNavigate && !isActive}
                         className={`w-full text-left p-2 rounded-md text-sm transition-colors ${
                           isActive 
                             ? 'bg-primary text-primary-foreground' 
                             : isCompleted
-                              ? 'bg-green-50 text-green-700 hover:bg-green-100 cursor-pointer'
+                              ? 'bg-green-50 text-green-700 hover:bg-green-100'
                               : canNavigate
-                                ? 'hover:bg-muted cursor-pointer'
-                                : canGoBack
-                                  ? 'bg-blue-50 text-blue-700 hover:bg-blue-100 cursor-pointer'
-                                  : 'opacity-50 cursor-not-allowed'
+                                ? 'hover:bg-muted'
+                                : 'opacity-50 cursor-not-allowed'
                         }`}
                       >
                         <div className="flex items-center gap-2">
@@ -483,11 +505,6 @@ export function CleanFormWizard() {
                       <p className="text-sm text-muted-foreground mt-1">
                         Step {currentStep + 1} of {formSteps.length}
                       </p>
-                      {currentStep > 0 && (
-                        <p className="text-xs text-blue-600 mt-1">
-                          💡 You can go back to previous steps to make changes
-                        </p>
-                      )}
                     </div>
                   </div>
                   
@@ -512,10 +529,9 @@ export function CleanFormWizard() {
                 variant="outline"
                 onClick={goToPreviousStep}
                 disabled={currentStep === 0}
-                className="flex items-center gap-2"
               >
-                <ArrowLeft className="h-4 w-4" />
-                {currentStep === 1 ? "Back to Institution Setup" : "Previous Step"}
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Previous
               </Button>
               
               <div className="flex gap-2">
@@ -538,6 +554,28 @@ export function CleanFormWizard() {
           </div>
         </div>
       </div>
+      
+      {/* Validation Dialog */}
+      <Dialog open={showValidationDialog} onOpenChange={setShowValidationDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Info className="h-5 w-5 text-blue-500" />
+              Incomplete Step
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Please fill all required indicators marked with asterisk (*) before proceeding to the next step. All indicators in this pillar must be completed to unlock the next pillar.
+            </p>
+            <div className="flex justify-end">
+              <Button onClick={() => setShowValidationDialog(false)}>
+                I Understand
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
