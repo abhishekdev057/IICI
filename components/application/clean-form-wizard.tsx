@@ -152,7 +152,12 @@ export function CleanFormWizard() {
   // Handle step navigation
   const goToStep = useCallback((stepIndex: number) => {
     if (stepIndex >= 0 && stepIndex < formSteps.length) {
-      if (canNavigateToStep(stepIndex)) {
+      const canGoBack = stepIndex < currentStep
+      const isCompleted = stepIndex === 0 ? 
+        !!(application.institutionData.name && application.institutionData.industry && application.institutionData.organizationSize && application.institutionData.country && application.institutionData.contactEmail) :
+        (stepIndex > 0 && stepIndex <= 6 && getPillarProgress(stepIndex).completion > 80)
+      
+      if (canNavigateToStep(stepIndex) || canGoBack || isCompleted) {
         setCurrentStep(stepIndex)
       } else {
         toast({
@@ -162,7 +167,7 @@ export function CleanFormWizard() {
         })
       }
     }
-  }, [canNavigateToStep, setCurrentStep, toast])
+  }, [canNavigateToStep, setCurrentStep, toast, currentStep, application, getPillarProgress])
   
   const goToNextStep = useCallback(() => {
     if (currentStep < formSteps.length - 1) {
@@ -179,6 +184,7 @@ export function CleanFormWizard() {
   
   const goToPreviousStep = useCallback(() => {
     if (currentStep > 0) {
+      // Allow going back to any previous step (no restrictions for going back)
       setCurrentStep(currentStep - 1)
     }
   }, [currentStep, setCurrentStep])
@@ -394,20 +400,23 @@ export function CleanFormWizard() {
                       !!(application.institutionData.name && application.institutionData.industry && application.institutionData.organizationSize && application.institutionData.country && application.institutionData.contactEmail) :
                       (index > 0 && index <= 6 && getPillarProgress(index).completion > 80)
                     const canNavigate = canNavigateToStep(index)
+                    const canGoBack = index < currentStep || isCompleted // Allow going back to previous steps
                     
                     return (
                       <button
                         key={step.id}
                         onClick={() => goToStep(index)}
-                        disabled={!canNavigate && !isActive}
+                        disabled={!canNavigate && !isActive && !canGoBack}
                         className={`w-full text-left p-2 rounded-md text-sm transition-colors ${
                           isActive 
                             ? 'bg-primary text-primary-foreground' 
                             : isCompleted
-                              ? 'bg-green-50 text-green-700 hover:bg-green-100'
+                              ? 'bg-green-50 text-green-700 hover:bg-green-100 cursor-pointer'
                               : canNavigate
-                                ? 'hover:bg-muted'
-                                : 'opacity-50 cursor-not-allowed'
+                                ? 'hover:bg-muted cursor-pointer'
+                                : canGoBack
+                                  ? 'bg-blue-50 text-blue-700 hover:bg-blue-100 cursor-pointer'
+                                  : 'opacity-50 cursor-not-allowed'
                         }`}
                       >
                         <div className="flex items-center gap-2">
@@ -474,6 +483,11 @@ export function CleanFormWizard() {
                       <p className="text-sm text-muted-foreground mt-1">
                         Step {currentStep + 1} of {formSteps.length}
                       </p>
+                      {currentStep > 0 && (
+                        <p className="text-xs text-blue-600 mt-1">
+                          💡 You can go back to previous steps to make changes
+                        </p>
+                      )}
                     </div>
                   </div>
                   
@@ -498,9 +512,10 @@ export function CleanFormWizard() {
                 variant="outline"
                 onClick={goToPreviousStep}
                 disabled={currentStep === 0}
+                className="flex items-center gap-2"
               >
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Previous
+                <ArrowLeft className="h-4 w-4" />
+                {currentStep === 1 ? "Back to Institution Setup" : "Previous Step"}
               </Button>
               
               <div className="flex gap-2">
