@@ -110,6 +110,7 @@ export function CleanFormWizard() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showSaveConfirmation, setShowSaveConfirmation] = useState(false)
   const [showValidationDialog, setShowValidationDialog] = useState(false)
+  const [validationInfo, setValidationInfo] = useState({ missingItems: [], filledCount: 0, totalCount: 0 })
   
   const application = state.application
   
@@ -167,46 +168,120 @@ export function CleanFormWizard() {
     }
   }, [canNavigateToStep, setCurrentStep, toast])
   
-  // Check if current step has some progress (not requiring ALL indicators)
-  const isCurrentStepComplete = useCallback(() => {
-    if (!application) return false
+  // Helper function to check if evidence is required for an indicator
+  const isEvidenceRequired = useCallback((indicatorId: string, value: any, measurementUnit: string) => {
+    if (!value || value === null || value === undefined || value === "") return false;
+    
+    // Binary indicators: evidence required if input is positive (1)
+    if (measurementUnit.includes('Binary')) {
+      return Number(value) === 1;
+    }
+    
+    // Percentage indicators: evidence required if input > 50%
+    if (measurementUnit.includes('Percentage')) {
+      return Number(value) > 50;
+    }
+    
+    // Number indicators: evidence required if input > 50
+    if (measurementUnit === 'Number') {
+      return Number(value) > 50;
+    }
+    
+    // Score indicators: evidence required if input > 50% of max score
+    if (measurementUnit.includes('Score')) {
+      const maxScore = measurementUnit.match(/\((\d+)-(\d+)\)/)?.[2] || 5;
+      return Number(value) > (Number(maxScore) * 0.5);
+    }
+    
+    // Hours indicators: evidence required if input > 20 hours
+    if (measurementUnit.includes('Hours')) {
+      return Number(value) > 20;
+    }
+    
+    // Ratio indicators: evidence required if input is not empty
+    if (measurementUnit === 'Ratio') {
+      return true;
+    }
+    
+    // Default: evidence required if input is not empty
+    return true;
+  }, []);
+
+  // Get detailed validation info for current step
+  const getStepValidationInfo = useCallback(() => {
+    if (!application) return { isComplete: false, missingItems: [], filledCount: 0, totalCount: 0 }
     
     if (currentStep === 0) {
-      // Check institution setup - all required fields must be filled
+      // Check institution setup
       const inst = application.institutionData
-      return !!(
-        inst.name?.trim() &&
-        inst.industry?.trim() &&
-        inst.organizationSize?.trim() &&
-        inst.country?.trim() &&
-        inst.contactEmail?.trim()
-      )
+      const requiredFields = [
+        { key: 'name', label: 'Institution Name' },
+        { key: 'industry', label: 'Industry' },
+        { key: 'organizationSize', label: 'Organization Size' },
+        { key: 'country', label: 'Country' },
+        { key: 'contactEmail', label: 'Contact Email' }
+      ]
+      
+      const missingItems = requiredFields.filter(field => !inst[field.key]?.trim())
+      const filledCount = requiredFields.length - missingItems.length
+      
+      return {
+        isComplete: missingItems.length === 0,
+        missingItems: missingItems.map(item => item.label),
+        filledCount,
+        totalCount: requiredFields.length
+      }
     } else {
-      // Check pillar data - at least some indicators should be filled (not all)
+      // Check pillar data
       const pillarData = application.pillarData?.[`pillar_${currentStep}`]
-      if (!pillarData) return false
+      if (!pillarData) return { isComplete: false, missingItems: [], filledCount: 0, totalCount: 0 }
       
-      // Get all indicators for this pillar
       const pillarStructure = require('@/lib/pillar-structure').PILLAR_STRUCTURE.find(p => p.id === currentStep)
-      if (!pillarStructure) return false
+      if (!pillarStructure) return { isComplete: false, missingItems: [], filledCount: 0, totalCount: 0 }
       
-      // Check if ALL indicators have values
+      const missingItems = []
+      let filledCount = 0
+      let totalCount = 0
+      
       for (const subPillar of pillarStructure.subPillars) {
         for (const indicatorId of subPillar.indicators) {
+          totalCount++
           const value = pillarData.indicators?.[indicatorId]?.value
+          const evidence = pillarData.indicators?.[indicatorId]?.evidence
+          
+          // Check if indicator value is filled
           if (value === null || value === undefined || value === "") {
-            return false
+            missingItems.push(`Indicator ${indicatorId} - Value not filled`)
+            continue
           }
+          
+          // For now, we'll consider it filled if value exists
+          // Evidence validation will be enhanced when we have indicator definitions
+          filledCount++
         }
       }
-      return true
+      
+      return {
+        isComplete: missingItems.length === 0,
+        missingItems,
+        filledCount,
+        totalCount
+      }
     }
   }, [application, currentStep])
+
+  // Check if current step is complete
+  const isCurrentStepComplete = useCallback(() => {
+    const validationInfo = getStepValidationInfo()
+    return validationInfo.isComplete
+  }, [getStepValidationInfo])
 
   const goToNextStep = useCallback(() => {
     if (currentStep < formSteps.length - 1) {
       // Check if current step is complete
       if (!isCurrentStepComplete()) {
+        const info = getStepValidationInfo()
+        setValidationInfo(info)
         setShowValidationDialog(true)
         return
       }
@@ -426,6 +501,34 @@ export function CleanFormWizard() {
                       (index > 0 && index <= 6 && getPillarProgress(index).completion >= 100)
                     const canNavigate = canNavigateToStep(index)
                     
+                    // Get progress info for this step
+                    let progressInfo = { filledCount: 0, totalCount: 0 }
+                    if (index === 0) {
+                      const inst = application.institutionData
+                      const requiredFields = ['name', 'industry', 'organizationSize', 'country', 'contactEmail']
+                      const filledCount = requiredFields.filter(field => inst[field]?.trim()).length
+                      progressInfo = { filledCount, totalCount: requiredFields.length }
+                    } else if (index > 0 && index <= 6) {
+                      const pillarData = application.pillarData?.[`pillar_${index}`]
+                      if (pillarData) {
+                        const pillarStructure = require('@/lib/pillar-structure').PILLAR_STRUCTURE.find(p => p.id === index)
+                        if (pillarStructure) {
+                          let filledCount = 0
+                          let totalCount = 0
+                          for (const subPillar of pillarStructure.subPillars) {
+                            for (const indicatorId of subPillar.indicators) {
+                              totalCount++
+                              const value = pillarData.indicators?.[indicatorId]?.value
+                              if (value !== null && value !== undefined && value !== "") {
+                                filledCount++
+                              }
+                            }
+                          }
+                          progressInfo = { filledCount, totalCount }
+                        }
+                      }
+                    }
+                    
                     return (
                       <button
                         key={step.id}
@@ -449,7 +552,14 @@ export function CleanFormWizard() {
                               isActive ? 'border-primary-foreground' : 'border-muted-foreground'
                             }`} />
                           )}
-                          <span className="truncate">{step.title}</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="truncate text-sm">{step.title}</div>
+                            {!isCompleted && progressInfo.totalCount > 0 && (
+                              <div className="text-xs text-muted-foreground">
+                                {progressInfo.filledCount}/{progressInfo.totalCount} completed
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </button>
                     )
@@ -565,9 +675,34 @@ export function CleanFormWizard() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Please fill all required indicators marked with asterisk (*) before proceeding to the next step. All indicators in this pillar must be completed to unlock the next pillar.
-            </p>
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">
+                Please complete all required fields before proceeding to the next step.
+              </p>
+              <div className="bg-muted p-3 rounded-md">
+                <div className="text-sm font-medium mb-2">
+                  Progress: {validationInfo.filledCount} / {validationInfo.totalCount} completed
+                </div>
+                {validationInfo.missingItems.length > 0 && (
+                  <div className="space-y-1">
+                    <div className="text-sm font-medium text-red-600">Missing items:</div>
+                    <ul className="text-sm text-muted-foreground space-y-1">
+                      {validationInfo.missingItems.slice(0, 5).map((item, index) => (
+                        <li key={index} className="flex items-center gap-2">
+                          <span className="w-1 h-1 bg-red-500 rounded-full"></span>
+                          {item}
+                        </li>
+                      ))}
+                      {validationInfo.missingItems.length > 5 && (
+                        <li className="text-xs text-muted-foreground">
+                          ... and {validationInfo.missingItems.length - 5} more
+                        </li>
+                      )}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </div>
             <div className="flex justify-end">
               <Button onClick={() => setShowValidationDialog(false)}>
                 I Understand

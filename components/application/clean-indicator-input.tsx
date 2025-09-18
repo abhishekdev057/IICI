@@ -176,18 +176,63 @@ export function CleanIndicatorInput({
   
   // Calculate progress
   const hasValue = localValue !== null && localValue !== undefined && localValue !== ""
+  
+  // Check if evidence is required based on input value
+  const isEvidenceRequired = () => {
+    if (!hasValue) return false
+    
+    // Binary indicators: evidence required if input is positive (1)
+    if (indicator.measurementUnit.includes('Binary')) {
+      return Number(localValue) === 1
+    }
+    
+    // Percentage indicators: evidence required if input > 50%
+    if (indicator.measurementUnit.includes('Percentage')) {
+      return Number(localValue) > 50
+    }
+    
+    // Number indicators: evidence required if input > 50
+    if (indicator.measurementUnit === 'Number') {
+      return Number(localValue) > 50
+    }
+    
+    // Score indicators: evidence required if input > 50% of max score
+    if (indicator.measurementUnit.includes('Score')) {
+      const maxScore = indicator.maxScore || 5
+      return Number(localValue) > (maxScore * 0.5)
+    }
+    
+    // Hours indicators: evidence required if input > 20 hours
+    if (indicator.measurementUnit.includes('Hours')) {
+      return Number(localValue) > 20
+    }
+    
+    // Ratio indicators: evidence required if input is not empty
+    if (indicator.measurementUnit === 'Ratio') {
+      return true
+    }
+    
+    // Default: evidence required if input is not empty
+    return true
+  }
+  
+  const evidenceRequired = isEvidenceRequired()
   const hasEvidence = !!(
     localEvidence.text?.description ||
     localEvidence.link?.url ||
     localEvidence.file?.fileName
   )
-  const isComplete = hasValue && hasEvidence
+  const isComplete = hasValue && (!evidenceRequired || hasEvidence)
   
   // Get progress percentage
   const getProgress = () => {
     let progress = 0
     if (hasValue) progress += 50
-    if (hasEvidence) progress += 50
+    if (evidenceRequired) {
+      if (hasEvidence) progress += 50
+    } else {
+      progress += 50 // Evidence not required, so full progress
+    }
     return progress
   }
   
@@ -195,8 +240,12 @@ export function CleanIndicatorInput({
   const getStatusBadge = () => {
     if (isComplete) {
       return <Badge variant="default" className="bg-green-500"><CheckCircle className="h-3 w-3 mr-1" />Complete</Badge>
-    } else if (hasValue || hasEvidence) {
-      return <Badge variant="secondary"><AlertCircle className="h-3 w-3 mr-1" />In Progress</Badge>
+    } else if (hasValue) {
+      if (evidenceRequired && !hasEvidence) {
+        return <Badge variant="destructive"><AlertCircle className="h-3 w-3 mr-1" />Evidence Required</Badge>
+      } else {
+        return <Badge variant="secondary"><AlertCircle className="h-3 w-3 mr-1" />In Progress</Badge>
+      }
     } else {
       return <Badge variant="outline">Not Started</Badge>
     }
@@ -403,10 +452,32 @@ export function CleanIndicatorInput({
           
           <TabsContent value="evidence" className="space-y-4">
             <div className="space-y-2">
-              <Label>Evidence Required</Label>
+              <div className="flex items-center gap-2">
+                <Label>Evidence Required</Label>
+                {evidenceRequired && (
+                  <Badge variant="destructive" className="text-xs">
+                    <AlertCircle className="h-3 w-3 mr-1" />
+                    Required
+                  </Badge>
+                )}
+                {!evidenceRequired && hasValue && (
+                  <Badge variant="secondary" className="text-xs">
+                    <CheckCircle className="h-3 w-3 mr-1" />
+                    Not Required
+                  </Badge>
+                )}
+              </div>
               <p className="text-sm text-muted-foreground bg-muted p-3 rounded-md">
                 {indicator.evidenceRequired}
               </p>
+              {evidenceRequired && !hasEvidence && (
+                <div className="bg-red-50 border border-red-200 p-3 rounded-md">
+                  <p className="text-sm text-red-700">
+                    <AlertCircle className="h-4 w-4 inline mr-1" />
+                    Evidence is required for this input value. Please provide supporting documentation.
+                  </p>
+                </div>
+              )}
             </div>
             
             {/* Text Evidence */}
