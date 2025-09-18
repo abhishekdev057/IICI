@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useEffect } from "react"
+import { useState, useCallback, useEffect, useRef } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -65,13 +65,21 @@ export function CleanIndicatorInput({
   const [uploadProgress, setUploadProgress] = useState(0)
   const [activeTab, setActiveTab] = useState("input")
   
+  // Refs to prevent infinite loops
+  const isUpdatingEvidenceRef = useRef(false)
+  const lastEvidenceRef = useRef(evidence)
+  
   // Update local state when props change
   useEffect(() => {
     setLocalValue(value)
   }, [value])
   
   useEffect(() => {
-    setLocalEvidence(evidence || {})
+    // Only update if we're not currently updating evidence to prevent loops
+    if (!isUpdatingEvidenceRef.current) {
+      setLocalEvidence(evidence || {})
+      lastEvidenceRef.current = evidence
+    }
   }, [evidence])
   
   // Handle value change with debouncing
@@ -103,7 +111,17 @@ export function CleanIndicatorInput({
   
   // Use effect to call parent callback when evidence changes
   useEffect(() => {
-    onEvidenceChange(localEvidence)
+    // Only call onEvidenceChange if the evidence has actually changed from the last known value
+    const hasChanged = JSON.stringify(localEvidence) !== JSON.stringify(lastEvidenceRef.current)
+    if (hasChanged && !isUpdatingEvidenceRef.current) {
+      isUpdatingEvidenceRef.current = true
+      onEvidenceChange(localEvidence)
+      lastEvidenceRef.current = localEvidence
+      // Reset the flag after a short delay to allow for state updates
+      setTimeout(() => {
+        isUpdatingEvidenceRef.current = false
+      }, 100)
+    }
   }, [localEvidence, onEvidenceChange])
   
   // Handle file upload

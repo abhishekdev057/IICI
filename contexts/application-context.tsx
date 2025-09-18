@@ -573,7 +573,7 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
         hasUnsavedChanges: true,
       };
     });
-  }, [state.application]);
+  }, []);
   
   // Update evidence
   const updateEvidence = useCallback((pillarId: number, indicatorId: string, evidence: EvidenceData) => {
@@ -625,7 +625,7 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
         hasUnsavedChanges: true,
       };
     });
-  }, [state.application]);
+  }, []);
   
   // Set current step
   const setCurrentStep = useCallback((step: number) => {
