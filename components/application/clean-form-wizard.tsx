@@ -328,11 +328,7 @@ export function CleanFormWizard() {
           console.log(`🔍 Evidence check for ${indicatorId}:`, {
             value,
             evidenceRequired,
-            hasEvidence: !!(
-              evidence?.text?.description ||
-              evidence?.link?.url ||
-              evidence?.file?.fileName
-            ),
+            hasEvidence: validateEvidence(evidence),
             evidence
           });
           
