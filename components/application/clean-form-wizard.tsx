@@ -667,14 +667,6 @@ export function CleanFormWizard() {
                   <Progress value={overallProgress.completion} className="h-2" />
                 </div>
                 
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span>Score</span>
-                    <span>{Math.round(overallProgress.score)}%</span>
-                  </div>
-                  <Progress value={overallProgress.score} className="h-2" />
-                </div>
-                
                 {/* Step Navigation */}
                 <div className="space-y-2">
                   <h4 className="font-medium text-sm">Steps</h4>
