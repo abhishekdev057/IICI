@@ -178,7 +178,7 @@ export function CleanIndicatorInput({
     valueChangeTimeoutRef.current = setTimeout(() => {
       console.log(`🔄 CleanIndicatorInput calling onChange for ${indicator.id}:`, newValue)
       onChange(newValue)
-    }, 150) // Optimized to 150ms for faster real-time updates
+    }, 100) // Reduced to 100ms for faster auto-save
   }, [onChange, indicator.id])
   
   // Handle evidence change - ENHANCED with debugging
@@ -221,7 +221,7 @@ export function CleanIndicatorInput({
           isUpdatingEvidenceRef.current = false
         }, 100)
       }
-    }, 150) // Optimized to 150ms for faster real-time updates
+    }, 100) // Reduced to 100ms for faster auto-save
   }, [onEvidenceChange, indicator.id])
   
   // Use effect to call parent callback when evidence changes

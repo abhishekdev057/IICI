@@ -360,6 +360,13 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
         }
       }
       
+      // Clear pending changes on error to prevent stuck state
+      setPendingChanges(prev => {
+        const newMap = new Map(prev);
+        newMap.delete(changeType);
+        return newMap;
+      });
+
       setState(prev => ({
         ...prev,
         isSaving: false,
@@ -381,7 +388,7 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
   const debouncedPartialSave = useCallback(
     debounce((changeType: string, changes: any) => {
       savePartialChanges(changeType, changes, false);
-    }, 500), // 500ms debounce for real-time saves
+    }, 300), // 300ms debounce for faster real-time saves
     [savePartialChanges]
   );
 
@@ -940,17 +947,17 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
       console.error('❌ No application found in state');
       return;
     }
-    
+
     const pillarKey = `pillar_${pillarId}`;
-    
+
     setState(prev => {
       if (!prev.application) {
         console.error('❌ No application in previous state');
         return prev;
       }
-      
+
       const newPillarData = { ...prev.application.pillarData };
-      
+
       if (!newPillarData[pillarKey]) {
         newPillarData[pillarKey] = {
           indicators: {},
@@ -959,12 +966,12 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
           score: 0,
         };
       }
-      
+
       // Ensure indicators object exists
       if (!newPillarData[pillarKey].indicators) {
         newPillarData[pillarKey].indicators = {};
       }
-      
+
       if (!newPillarData[pillarKey].indicators[indicatorId]) {
         newPillarData[pillarKey].indicators[indicatorId] = {
           id: indicatorId,
@@ -973,30 +980,49 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
           lastModified: new Date(),
         };
       }
-      
-      // Merge evidence data properly, preserving existing values
+
+      // Merge evidence data properly, preserving existing values and ensuring consistency
       const existingEvidence = newPillarData[pillarKey].indicators[indicatorId].evidence || {};
       console.log(`💾 Existing evidence for ${indicatorId}:`, existingEvidence)
-      
-      const mergedEvidence = {
-        ...existingEvidence,
-        ...evidence,
-        // Ensure _persisted flags are properly set
-        text: evidence.text ? { ...evidence.text, _persisted: evidence.text._persisted || false } : existingEvidence.text,
-        link: evidence.link ? { ...evidence.link, _persisted: evidence.link._persisted || false } : existingEvidence.link,
-        file: evidence.file ? { ...evidence.file, _persisted: evidence.file._persisted || false } : existingEvidence.file,
+
+      // Clean and normalize evidence data
+      const cleanEvidence = {
+        text: evidence.text?.description?.trim() ? {
+          description: evidence.text.description.trim(),
+          _persisted: evidence.text._persisted !== false // Default to true for new evidence
+        } : null,
+        link: evidence.link?.url?.trim() ? {
+          url: evidence.link.url.trim(),
+          description: evidence.link.description?.trim() || '',
+          _persisted: evidence.link._persisted !== false
+        } : null,
+        file: evidence.file?.fileName?.trim() ? {
+          fileName: evidence.file.fileName.trim(),
+          fileSize: evidence.file.fileSize,
+          fileType: evidence.file.fileType,
+          url: evidence.file.url,
+          description: evidence.file.description?.trim() || '',
+          _persisted: evidence.file._persisted !== false
+        } : null
       };
-      
+
+      const mergedEvidence = {
+        text: cleanEvidence.text || existingEvidence.text,
+        link: cleanEvidence.link || existingEvidence.link,
+        file: cleanEvidence.file || existingEvidence.file,
+      };
+
+      console.log(`💾 Cleaned evidence for ${indicatorId}:`, cleanEvidence)
       console.log(`💾 Merged evidence for ${indicatorId}:`, mergedEvidence)
-      
+
       // Check if evidence actually changed
       const hasEvidenceChanged = JSON.stringify(existingEvidence) !== JSON.stringify(mergedEvidence);
-      
+
       if (!hasEvidenceChanged) {
         console.log('🔍 updateEvidence: Evidence unchanged for', indicatorId, '- skipping save');
         return prev; // No change, don't trigger save
       }
-      
+
       newPillarData[pillarKey] = {
         ...newPillarData[pillarKey],
         indicators: {
@@ -1009,18 +1035,18 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
         },
         lastModified: new Date(),
       };
-      
+
       // Recalculate pillar progress
       const progress = calculatePillarProgress(newPillarData[pillarKey], pillarId);
       newPillarData[pillarKey].completion = progress.completion;
       newPillarData[pillarKey].score = progress.score;
-      
+
       console.log(`💾 Updated evidence for ${pillarKey}.${indicatorId}:`, {
         evidence: mergedEvidence,
         completion: progress.completion,
         score: progress.score
       });
-      
+
       // Log specific evidence types for debugging
       if (mergedEvidence.text?.description) {
         console.log(`✅ Text evidence saved for ${indicatorId}:`, mergedEvidence.text.description)
@@ -1031,9 +1057,9 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
       if (mergedEvidence.file?.fileName) {
         console.log(`✅ File evidence saved for ${indicatorId}:`, mergedEvidence.file.fileName)
       }
-      
+
       console.log('🔍 updateEvidence: Evidence changed for', indicatorId, '- triggering partial save');
-      
+
       return {
         ...prev,
         application: {
@@ -1045,7 +1071,7 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
       };
     });
 
-    // Trigger smart partial save
+    // Trigger smart partial save with cleaned evidence
     const changeKey = `evidence_${pillarId}_${indicatorId}`;
     setPendingChanges(prev => new Map(prev.set(changeKey, { pillarId, indicatorId, evidence })));
     debouncedPartialSave('evidence', { pillarId, indicatorId, evidence });

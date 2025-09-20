@@ -79,30 +79,34 @@ export async function GET(
         console.log(`🔍 Processing evidence for indicator ${response.indicatorId}:`, response.evidence);
         response.evidence.forEach(ev => {
           console.log(`🔍 Evidence item:`, { type: ev.type, fileName: ev.fileName, url: ev.url, description: ev.description });
-          
-          if (ev.type === 'TEXT' && ev.description) {
-            evidence.text = {
-              description: ev.description,
-              _persisted: true
+
+          try {
+            if (ev.type === 'TEXT' && ev.description && ev.description.trim()) {
+              evidence.text = {
+                description: ev.description.trim(),
+                _persisted: true
+              }
+              console.log(`✅ Created text evidence:`, evidence.text);
+            } else if (ev.type === 'FILE' && ev.fileName && ev.fileName.trim()) {
+              evidence.file = {
+                fileName: ev.fileName.trim(),
+                fileSize: ev.fileSize,
+                fileType: ev.fileType,
+                url: ev.url || '',
+                description: ev.description || '',
+                _persisted: true
+              }
+              console.log(`✅ Created file evidence:`, evidence.file);
+            } else if (ev.type === 'LINK' && ev.url && ev.url.trim()) {
+              evidence.link = {
+                url: ev.url.trim(),
+                description: ev.description || '',
+                _persisted: true
+              }
+              console.log(`✅ Created link evidence:`, evidence.link);
             }
-            console.log(`✅ Created text evidence:`, evidence.text);
-          } else if (ev.type === 'FILE' && ev.fileName) {
-            evidence.file = {
-              fileName: ev.fileName,
-              fileSize: ev.fileSize,
-              fileType: ev.fileType,
-              url: ev.url || '',
-              description: ev.description || '',
-              _persisted: true
-            }
-            console.log(`✅ Created file evidence:`, evidence.file);
-          } else if (ev.type === 'LINK') {
-            evidence.link = {
-              url: ev.url || '',
-              description: ev.description || '',
-              _persisted: true
-            }
-            console.log(`✅ Created link evidence:`, evidence.link);
+          } catch (error) {
+            console.error(`❌ Error processing evidence item:`, ev, error);
           }
         })
       }

@@ -37,9 +37,10 @@ export async function PUT(
       case 'indicator':
         result = await updateIndicator(applicationId, changes)
         break
-      case 'evidence':
-        result = await updateEvidence(applicationId, changes)
-        break
+    case 'evidence':
+      console.log('🔄 Processing evidence update:', changes)
+      result = await updateEvidence(applicationId, changes)
+      break
       case 'institution':
         result = await updateInstitution(applicationId, changes)
         break
@@ -99,6 +100,11 @@ async function updateEvidence(applicationId: string, changes: any) {
 
   console.log('🔍 Evidence update data:', { pillarId, indicatorId, evidence })
 
+  if (!evidence || typeof evidence !== 'object') {
+    console.error('❌ Invalid evidence data:', evidence)
+    return { error: 'Invalid evidence data' }
+  }
+
   // First get the indicator response
   const indicatorResponse = await prisma.indicatorResponse.findUnique({
     where: {
@@ -110,7 +116,17 @@ async function updateEvidence(applicationId: string, changes: any) {
   })
 
   if (!indicatorResponse) {
-    throw new Error('Indicator response not found')
+    console.log('❌ Indicator response not found for', indicatorId, '- creating new one')
+    // Create indicator response if it doesn't exist
+    const newResponse = await prisma.indicatorResponse.create({
+      data: {
+        applicationId,
+        indicatorId,
+        rawValue: null
+      }
+    })
+    console.log('✅ Created indicator response:', newResponse.id)
+    return { evidenceCount: 0 }
   }
 
   // Delete existing evidence for this indicator
@@ -128,7 +144,7 @@ async function updateEvidence(applicationId: string, changes: any) {
     evidenceEntries.push({
       indicatorResponseId: indicatorResponse.id,
       applicationId,
-      type: 'TEXT',
+      type: 'TEXT' as const,
       description: evidence.text.description.trim(),
       url: null,
       fileName: null,
@@ -142,7 +158,7 @@ async function updateEvidence(applicationId: string, changes: any) {
     evidenceEntries.push({
       indicatorResponseId: indicatorResponse.id,
       applicationId,
-      type: 'LINK',
+      type: 'LINK' as const,
       description: evidence.link.description?.trim() || null,
       url: evidence.link.url.trim(),
       fileName: null,
@@ -156,7 +172,7 @@ async function updateEvidence(applicationId: string, changes: any) {
     evidenceEntries.push({
       indicatorResponseId: indicatorResponse.id,
       applicationId,
-      type: 'FILE',
+      type: 'FILE' as const,
       description: evidence.file.description?.trim() || null,
       url: evidence.file.url || null,
       fileName: evidence.file.fileName.trim(),
