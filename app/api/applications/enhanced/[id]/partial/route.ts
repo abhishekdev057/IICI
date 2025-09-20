@@ -105,13 +105,15 @@ async function updateEvidence(applicationId: string, changes: any) {
     return { error: 'Invalid evidence data' }
   }
 
-  // Check if there's any actual evidence to save
-  const hasEvidence = evidence.text?.description?.trim() ||
-                     evidence.link?.url?.trim() ||
-                     evidence.file?.fileName?.trim()
+  // Check if evidence object is provided (don't check content, save on any input)
+  const hasEvidenceObject = evidence && (
+    evidence.text !== undefined ||
+    evidence.link !== undefined ||
+    evidence.file !== undefined
+  )
 
-  if (!hasEvidence) {
-    console.log('ℹ️ No evidence to save for', indicatorId)
+  if (!hasEvidenceObject) {
+    console.log('ℹ️ No evidence object provided for', indicatorId)
     return { evidenceCount: 0 }
   }
 
@@ -148,13 +150,13 @@ async function updateEvidence(applicationId: string, changes: any) {
   // Create new evidence entries
   const evidenceEntries = []
   
-  // Handle TEXT evidence
-  if (evidence.text?.description && evidence.text.description.trim() !== '') {
+  // Handle TEXT evidence - save even if empty for immediate responsiveness
+  if (evidence.text !== undefined) {
     evidenceEntries.push({
       indicatorResponseId: indicatorResponse.id,
       applicationId,
       type: 'TEXT' as const,
-      description: evidence.text.description.trim(),
+      description: evidence.text.description?.trim() || '',
       url: null,
       fileName: null,
       fileSize: null,
@@ -162,29 +164,29 @@ async function updateEvidence(applicationId: string, changes: any) {
     })
   }
 
-  // Handle LINK evidence
-  if (evidence.link?.url && evidence.link.url.trim() !== '') {
+  // Handle LINK evidence - save even if empty for immediate responsiveness
+  if (evidence.link !== undefined) {
     evidenceEntries.push({
       indicatorResponseId: indicatorResponse.id,
       applicationId,
       type: 'LINK' as const,
-      description: evidence.link.description?.trim() || null,
-      url: evidence.link.url.trim(),
+      description: evidence.link.description?.trim() || '',
+      url: evidence.link.url?.trim() || '',
       fileName: null,
       fileSize: null,
       fileType: null
     })
   }
 
-  // Handle FILE evidence
-  if (evidence.file?.fileName && evidence.file.fileName.trim() !== '') {
+  // Handle FILE evidence - save even if empty for immediate responsiveness
+  if (evidence.file !== undefined) {
     evidenceEntries.push({
       indicatorResponseId: indicatorResponse.id,
       applicationId,
       type: 'FILE' as const,
-      description: evidence.file.description?.trim() || null,
+      description: evidence.file.description?.trim() || '',
       url: evidence.file.url || null,
-      fileName: evidence.file.fileName.trim(),
+      fileName: evidence.file.fileName?.trim() || '',
       fileSize: evidence.file.fileSize || null,
       fileType: evidence.file.fileType || null
     })

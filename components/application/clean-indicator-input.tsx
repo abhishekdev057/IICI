@@ -192,24 +192,33 @@ export function CleanIndicatorInput({
     }, 100) // Reduced to 100ms for faster auto-save
   }, [onChange, indicator.id])
   
-  // Handle evidence change - ENHANCED with debugging
+  // Handle evidence change - IMMEDIATE saving for better UX
   const handleEvidenceChange = useCallback((type: 'text' | 'link' | 'file', field: string, evidenceValue: any) => {
     console.log(`🔄 handleEvidenceChange called:`, { type, field, evidenceValue, indicatorId: indicator.id })
-    
+
     setLocalEvidence((prev: any) => {
       const updatedEvidence = { ...prev }
-      
+
       if (!updatedEvidence[type]) {
         updatedEvidence[type] = {} as any
       }
-      
+
       (updatedEvidence[type] as any)[field] = evidenceValue
-      
-      console.log(`🔄 Updated evidence for ${indicator.id}:`, updatedEvidence)
-      
+
+      // Trigger immediate save for evidence changes (no debouncing for better UX)
+      const evidenceData = {
+        [type]: {
+          ...updatedEvidence[type],
+          _persisted: false // Mark as not persisted yet
+        }
+      }
+
+      console.log(`💾 Immediate evidence save for ${indicator.id}:`, evidenceData)
+      onEvidenceChange(evidenceData)
+
       return updatedEvidence
     })
-  }, [indicator.id])
+  }, [indicator.id, onEvidenceChange])
   
   // Debounced evidence update to parent - ENHANCED with debugging
   const debouncedEvidenceUpdate = useCallback((evidenceData: any) => {
@@ -660,6 +669,18 @@ export function CleanIndicatorInput({
                 <Textarea
                   value={localEvidence.text.description || ''}
                   onChange={(e) => handleEvidenceChange('text', 'description', e.target.value)}
+                  onFocus={() => console.log(`🎯 Text input focused for ${indicator.id}`)}
+                  onBlur={() => {
+                    console.log(`👋 Text input blurred for ${indicator.id}, final save`)
+                    // Trigger final save on blur
+                    const evidenceData = {
+                      text: {
+                        ...localEvidence.text,
+                        _persisted: false
+                      }
+                    }
+                    onEvidenceChange(evidenceData)
+                  }}
                   placeholder="Enter text evidence..."
                   rows={3}
                 />
@@ -685,11 +706,33 @@ export function CleanIndicatorInput({
                 <Input
                   value={localEvidence.link.url || ''}
                   onChange={(e) => handleEvidenceChange('link', 'url', e.target.value)}
+                  onFocus={() => console.log(`🎯 Link URL input focused for ${indicator.id}`)}
+                  onBlur={() => {
+                    console.log(`👋 Link URL input blurred for ${indicator.id}, final save`)
+                    const evidenceData = {
+                      link: {
+                        ...localEvidence.link,
+                        _persisted: false
+                      }
+                    }
+                    onEvidenceChange(evidenceData)
+                  }}
                   placeholder="Enter URL..."
                 />
                 <Textarea
                   value={localEvidence.link.description || ''}
                   onChange={(e) => handleEvidenceChange('link', 'description', e.target.value)}
+                  onFocus={() => console.log(`🎯 Link description input focused for ${indicator.id}`)}
+                  onBlur={() => {
+                    console.log(`👋 Link description input blurred for ${indicator.id}, final save`)
+                    const evidenceData = {
+                      link: {
+                        ...localEvidence.link,
+                        _persisted: false
+                      }
+                    }
+                    onEvidenceChange(evidenceData)
+                  }}
                   placeholder="Enter link description..."
                   rows={2}
                 />
@@ -716,11 +759,33 @@ export function CleanIndicatorInput({
                   <Input
                     value={localEvidence.file.fileName || ''}
                     onChange={(e) => handleEvidenceChange('file', 'fileName', e.target.value)}
+                    onFocus={() => console.log(`🎯 File name input focused for ${indicator.id}`)}
+                    onBlur={() => {
+                      console.log(`👋 File name input blurred for ${indicator.id}, final save`)
+                      const evidenceData = {
+                        file: {
+                          ...localEvidence.file,
+                          _persisted: false
+                        }
+                      }
+                      onEvidenceChange(evidenceData)
+                    }}
                     placeholder="File name..."
                   />
                   <Textarea
                     value={localEvidence.file.description || ''}
                     onChange={(e) => handleEvidenceChange('file', 'description', e.target.value)}
+                    onFocus={() => console.log(`🎯 File description input focused for ${indicator.id}`)}
+                    onBlur={() => {
+                      console.log(`👋 File description input blurred for ${indicator.id}, final save`)
+                      const evidenceData = {
+                        file: {
+                          ...localEvidence.file,
+                          _persisted: false
+                        }
+                      }
+                      onEvidenceChange(evidenceData)
+                    }}
                     placeholder="File description..."
                     rows={2}
                   />

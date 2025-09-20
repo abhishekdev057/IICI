@@ -388,7 +388,7 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
   const debouncedPartialSave = useCallback(
     debounce((changeType: string, changes: any) => {
       savePartialChanges(changeType, changes, false);
-    }, 300), // 300ms debounce for faster real-time saves
+    }, 150), // 150ms debounce for evidence changes
     [savePartialChanges]
   );
 
