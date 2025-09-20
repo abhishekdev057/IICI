@@ -404,7 +404,8 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
     
     const maxRetries = 3;
     const retryDelay = 1000 * Math.pow(2, retryCount); // Exponential backoff
-    
+    const startTime = Date.now();
+
     try {
       setState(prev => ({ ...prev, isLoading: true, error: null }));
       
@@ -413,7 +414,7 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
       const timeoutId = setTimeout(() => {
         console.log('⏰ Request timeout reached, aborting...');
         controller.abort('Request timeout');
-      }, 15000); // 15 second timeout
+      }, 30000); // 30 second timeout (increased from 15s)
 
       // First get the list of applications to find the current one
       const listResponse = await fetch('/api/applications/enhanced', {
@@ -472,6 +473,14 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
                 hasIndicatorResponses: !!app.indicatorResponses,
                 indicatorResponsesCount: app.indicatorResponses?.length || 0
               });
+
+              // Log loading performance
+              const loadTime = Date.now() - startTime;
+              console.log(`⏱️ Application loaded in ${loadTime}ms`);
+
+              if (loadTime > 5000) {
+                console.warn('⚠️ Slow loading detected, consider optimizing data processing');
+              }
 
               // Debug pillar 6 data specifically
               if (pillarData.pillar_6) {
@@ -550,14 +559,31 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
       }
     } catch (error) {
       console.error('Load error:', error);
-      
-      // Retry on network errors
-      if (error instanceof Error && error.name === 'AbortError' && retryCount < maxRetries) {
-        console.log(`🔄 Network timeout, retrying load in ${retryDelay}ms... (attempt ${retryCount + 1}/${maxRetries})`);
+
+      // Handle timeout errors specifically
+      if (error instanceof Error && error.name === 'AbortError') {
+        if (retryCount < maxRetries) {
+          console.log(`⏰ Request timeout, retrying load in ${retryDelay}ms... (attempt ${retryCount + 1}/${maxRetries})`);
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
+          return loadApplication(retryCount + 1);
+        } else {
+          console.error('❌ Max retries reached for timeout errors');
+          setState(prev => ({
+            ...prev,
+            error: 'Application is taking too long to load. Please check your internet connection and try again.',
+            isLoading: false,
+          }));
+          return;
+        }
+      }
+
+      // Handle other network errors with retry
+      if (error instanceof Error && (error.message.includes('fetch') || error.message.includes('network')) && retryCount < maxRetries) {
+        console.log(`🔄 Network error, retrying load in ${retryDelay}ms... (attempt ${retryCount + 1}/${maxRetries})`);
         await new Promise(resolve => setTimeout(resolve, retryDelay));
         return loadApplication(retryCount + 1);
       }
-      
+
       setState(prev => ({
         ...prev,
         error: error instanceof Error ? error.message : 'Failed to load application',

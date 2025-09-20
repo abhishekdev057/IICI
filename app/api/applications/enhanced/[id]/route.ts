@@ -20,7 +20,7 @@ export async function GET(
     const { id } = await params
     console.log('🔍 Application ID:', id)
     
-    // Get application with all related data
+    // Get application with optimized related data (exclude heavy fields for faster loading)
     const application = await prisma.application.findUnique({
       where: { id },
       include: {
@@ -31,14 +31,15 @@ export async function GET(
             evidence: true
           }
         },
-        evidence: true,
-        scoreAudits: true,
-        certifications: true,
-        adminReviews: {
-          include: {
-            user: true
-          }
-        }
+        // Temporarily exclude heavy fields that slow down loading
+        // evidence: true, // Will be loaded via indicatorResponses
+        // scoreAudits: true,
+        // certifications: true,
+        // adminReviews: {
+        //   include: {
+        //     user: true
+        //   }
+        // }
       }
     })
 
