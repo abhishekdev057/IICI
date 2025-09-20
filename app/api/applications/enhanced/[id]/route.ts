@@ -20,7 +20,7 @@ export async function GET(
     const { id } = await params
     console.log('🔍 Application ID:', id)
     
-    // Get application with optimized related data (exclude heavy fields for faster loading)
+    // Get application with optimized related data (include necessary fields)
     const application = await prisma.application.findUnique({
       where: { id },
       include: {
@@ -31,15 +31,19 @@ export async function GET(
             evidence: true
           }
         },
-        // Temporarily exclude heavy fields that slow down loading
-        // evidence: true, // Will be loaded via indicatorResponses
-        // scoreAudits: true,
-        // certifications: true,
+        scoreAudits: {
+          take: 1, // Only get the latest score audit for performance
+          orderBy: { calculatedAt: 'desc' }
+        },
+        certifications: {
+          take: 1, // Only get the latest certification for performance
+          orderBy: { issuedAt: 'desc' }
+        },
         // adminReviews: {
         //   include: {
         //     user: true
         //   }
-        // }
+        // } // Commented out for performance - can be loaded separately if needed
       }
     })
 
@@ -82,26 +86,27 @@ export async function GET(
           console.log(`🔍 Evidence item:`, { type: ev.type, fileName: ev.fileName, url: ev.url, description: ev.description });
 
           try {
-            if (ev.type === 'TEXT' && ev.description && ev.description.trim()) {
+            // Load evidence consistently with saving logic - load all evidence types
+            if (ev.type === 'TEXT') {
               evidence.text = {
-                description: ev.description.trim(),
+                description: ev.description?.trim() || '',
                 _persisted: true
               }
               console.log(`✅ Created text evidence:`, evidence.text);
-            } else if (ev.type === 'FILE' && ev.fileName && ev.fileName.trim()) {
+            } else if (ev.type === 'FILE') {
               evidence.file = {
-                fileName: ev.fileName.trim(),
+                fileName: ev.fileName?.trim() || '',
                 fileSize: ev.fileSize,
                 fileType: ev.fileType,
                 url: ev.url || '',
-                description: ev.description || '',
+                description: ev.description?.trim() || '',
                 _persisted: true
               }
               console.log(`✅ Created file evidence:`, evidence.file);
-            } else if (ev.type === 'LINK' && ev.url && ev.url.trim()) {
+            } else if (ev.type === 'LINK') {
               evidence.link = {
-                url: ev.url.trim(),
-                description: ev.description || '',
+                url: ev.url?.trim() || '',
+                description: ev.description?.trim() || '',
                 _persisted: true
               }
               console.log(`✅ Created link evidence:`, evidence.link);
@@ -174,13 +179,13 @@ export async function GET(
       id: application.id,
       institutionData: application.institutionData,
       pillarData,
-      scores: application.scoreAudits[0] || null,
+      scores: application.scoreAudits?.[0] || null,
       status: application.status?.toLowerCase() || 'draft',
       submittedAt: application.submittedAt,
       lastSaved: application.updatedAt,
       lastModified: application.updatedAt,
-      certifications: application.certifications,
-      adminReviews: application.adminReviews
+      certifications: application.certifications?.[0] || null,
+      adminReviews: null // Not loading admin reviews for performance
     }
 
     console.log('🔍 API returning transformed application:', {

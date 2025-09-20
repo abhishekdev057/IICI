@@ -313,15 +313,32 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to save changes');
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch (parseError) {
+          console.error('❌ Failed to parse error response:', parseError);
+          errorData = { error: `HTTP ${response.status}: ${response.statusText}` };
+        }
+        throw new Error(errorData.error || `Failed to save changes (${response.status})`);
       }
 
-      const result = await response.json();
-      console.log('✅ Partial save successful:', result);
+      let result;
+      try {
+        result = await response.json();
+        console.log('✅ Partial save successful:', result);
+      } catch (parseError) {
+        console.error('❌ Failed to parse success response:', parseError);
+        result = { message: 'Changes saved successfully' };
+      }
 
       // Update last saved state
-      setLastSavedState(JSON.parse(JSON.stringify(state.application)));
+      try {
+        setLastSavedState(JSON.parse(JSON.stringify(state.application)));
+      } catch (serializeError) {
+        console.error('❌ Failed to serialize application state:', serializeError);
+        // Don't fail the save just because we can't serialize the state
+      }
       
       // Remove this change from pending changes
       setPendingChanges(prev => {

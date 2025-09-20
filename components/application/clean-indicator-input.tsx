@@ -124,8 +124,22 @@ export function CleanIndicatorInput({
   //   hasApplication: !!state.application
   // });
   
-  const [localValue, setLocalValue] = useState(value)
-  const [localEvidence, setLocalEvidence] = useState(evidence || {})
+  const [localValue, setLocalValue] = useState(() => {
+    try {
+      return value
+    } catch (error) {
+      console.error(`❌ Error initializing localValue for ${indicator?.id}:`, error)
+      return null
+    }
+  })
+  const [localEvidence, setLocalEvidence] = useState(() => {
+    try {
+      return evidence || {}
+    } catch (error) {
+      console.error(`❌ Error initializing localEvidence for ${indicator?.id}:`, error)
+      return {}
+    }
+  })
   const [isUploading, setIsUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [activeTab, setActiveTab] = useState("input")
@@ -672,14 +686,20 @@ export function CleanIndicatorInput({
                   onFocus={() => console.log(`🎯 Text input focused for ${indicator.id}`)}
                   onBlur={() => {
                     console.log(`👋 Text input blurred for ${indicator.id}, final save`)
-                    // Trigger final save on blur
-                    const evidenceData = {
-                      text: {
-                        ...localEvidence.text,
-                        _persisted: false
+                    // Trigger final save on blur with proper error handling
+                    try {
+                      if (localEvidence.text) {
+                        const evidenceData = {
+                          text: {
+                            ...localEvidence.text,
+                            _persisted: false
+                          }
+                        }
+                        onEvidenceChange(evidenceData)
                       }
+                    } catch (error) {
+                      console.error(`❌ Error saving text evidence on blur for ${indicator.id}:`, error)
                     }
-                    onEvidenceChange(evidenceData)
                   }}
                   placeholder="Enter text evidence..."
                   rows={3}
@@ -709,13 +729,19 @@ export function CleanIndicatorInput({
                   onFocus={() => console.log(`🎯 Link URL input focused for ${indicator.id}`)}
                   onBlur={() => {
                     console.log(`👋 Link URL input blurred for ${indicator.id}, final save`)
-                    const evidenceData = {
-                      link: {
-                        ...localEvidence.link,
-                        _persisted: false
+                    try {
+                      if (localEvidence.link) {
+                        const evidenceData = {
+                          link: {
+                            ...localEvidence.link,
+                            _persisted: false
+                          }
+                        }
+                        onEvidenceChange(evidenceData)
                       }
+                    } catch (error) {
+                      console.error(`❌ Error saving link evidence on blur for ${indicator.id}:`, error)
                     }
-                    onEvidenceChange(evidenceData)
                   }}
                   placeholder="Enter URL..."
                 />
@@ -725,13 +751,19 @@ export function CleanIndicatorInput({
                   onFocus={() => console.log(`🎯 Link description input focused for ${indicator.id}`)}
                   onBlur={() => {
                     console.log(`👋 Link description input blurred for ${indicator.id}, final save`)
-                    const evidenceData = {
-                      link: {
-                        ...localEvidence.link,
-                        _persisted: false
+                    try {
+                      if (localEvidence.link) {
+                        const evidenceData = {
+                          link: {
+                            ...localEvidence.link,
+                            _persisted: false
+                          }
+                        }
+                        onEvidenceChange(evidenceData)
                       }
+                    } catch (error) {
+                      console.error(`❌ Error saving link description evidence on blur for ${indicator.id}:`, error)
                     }
-                    onEvidenceChange(evidenceData)
                   }}
                   placeholder="Enter link description..."
                   rows={2}
@@ -762,13 +794,19 @@ export function CleanIndicatorInput({
                     onFocus={() => console.log(`🎯 File name input focused for ${indicator.id}`)}
                     onBlur={() => {
                       console.log(`👋 File name input blurred for ${indicator.id}, final save`)
-                      const evidenceData = {
-                        file: {
-                          ...localEvidence.file,
-                          _persisted: false
+                      try {
+                        if (localEvidence.file) {
+                          const evidenceData = {
+                            file: {
+                              ...localEvidence.file,
+                              _persisted: false
+                            }
+                          }
+                          onEvidenceChange(evidenceData)
                         }
+                      } catch (error) {
+                        console.error(`❌ Error saving file name evidence on blur for ${indicator.id}:`, error)
                       }
-                      onEvidenceChange(evidenceData)
                     }}
                     placeholder="File name..."
                   />
@@ -778,13 +816,19 @@ export function CleanIndicatorInput({
                     onFocus={() => console.log(`🎯 File description input focused for ${indicator.id}`)}
                     onBlur={() => {
                       console.log(`👋 File description input blurred for ${indicator.id}, final save`)
-                      const evidenceData = {
-                        file: {
-                          ...localEvidence.file,
-                          _persisted: false
+                      try {
+                        if (localEvidence.file) {
+                          const evidenceData = {
+                            file: {
+                              ...localEvidence.file,
+                              _persisted: false
+                            }
+                          }
+                          onEvidenceChange(evidenceData)
                         }
+                      } catch (error) {
+                        console.error(`❌ Error saving file description evidence on blur for ${indicator.id}:`, error)
                       }
-                      onEvidenceChange(evidenceData)
                     }}
                     placeholder="File description..."
                     rows={2}
