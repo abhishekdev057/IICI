@@ -74,7 +74,13 @@ export async function GET(
         response.evidence.forEach(ev => {
           console.log(`🔍 Evidence item:`, { type: ev.type, fileName: ev.fileName, url: ev.url, description: ev.description });
           
-          if (ev.type === 'FILE' && ev.fileName) {
+          if (ev.type === 'TEXT' && ev.description) {
+            evidence.text = {
+              description: ev.description,
+              _persisted: true
+            }
+            console.log(`✅ Created text evidence:`, evidence.text);
+          } else if (ev.type === 'FILE' && ev.fileName) {
             evidence.file = {
               fileName: ev.fileName,
               fileSize: ev.fileSize,
@@ -84,19 +90,13 @@ export async function GET(
               _persisted: true
             }
             console.log(`✅ Created file evidence:`, evidence.file);
-          } else if (ev.type === 'LINK' && ev.url) {
+          } else if (ev.type === 'LINK') {
             evidence.link = {
-              url: ev.url,
+              url: ev.url || '',
               description: ev.description || '',
               _persisted: true
             }
             console.log(`✅ Created link evidence:`, evidence.link);
-          } else if (ev.type === 'LINK' && ev.description && !ev.url) {
-            evidence.text = {
-              description: ev.description,
-              _persisted: true
-            }
-            console.log(`✅ Created text evidence:`, evidence.text);
           }
         })
       }

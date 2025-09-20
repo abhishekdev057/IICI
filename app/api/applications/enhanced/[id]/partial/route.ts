@@ -97,6 +97,8 @@ async function updateIndicator(applicationId: string, changes: any) {
 async function updateEvidence(applicationId: string, changes: any) {
   const { pillarId, indicatorId, evidence } = changes
 
+  console.log('🔍 Evidence update data:', { pillarId, indicatorId, evidence })
+
   // First get the indicator response
   const indicatorResponse = await prisma.indicatorResponse.findUnique({
     where: {
@@ -121,44 +123,49 @@ async function updateEvidence(applicationId: string, changes: any) {
   // Create new evidence entries
   const evidenceEntries = []
   
-  if (evidence.text?.description) {
+  // Handle TEXT evidence
+  if (evidence.text?.description && evidence.text.description.trim() !== '') {
     evidenceEntries.push({
       indicatorResponseId: indicatorResponse.id,
       applicationId,
       type: 'TEXT',
-      description: evidence.text.description,
+      description: evidence.text.description.trim(),
       url: null,
       fileName: null,
       fileSize: null,
       fileType: null
-    } as any)
+    })
   }
 
-  if (evidence.link?.url) {
+  // Handle LINK evidence
+  if (evidence.link?.url && evidence.link.url.trim() !== '') {
     evidenceEntries.push({
       indicatorResponseId: indicatorResponse.id,
       applicationId,
       type: 'LINK',
-      description: evidence.link.description || null,
-      url: evidence.link.url,
+      description: evidence.link.description?.trim() || null,
+      url: evidence.link.url.trim(),
       fileName: null,
       fileSize: null,
       fileType: null
-    } as any)
+    })
   }
 
-  if (evidence.file?.fileName) {
+  // Handle FILE evidence
+  if (evidence.file?.fileName && evidence.file.fileName.trim() !== '') {
     evidenceEntries.push({
       indicatorResponseId: indicatorResponse.id,
       applicationId,
       type: 'FILE',
-      description: evidence.file.description || null,
+      description: evidence.file.description?.trim() || null,
       url: evidence.file.url || null,
-      fileName: evidence.file.fileName,
-      fileSize: evidence.file.fileSize,
-      fileType: evidence.file.fileType
-    } as any)
+      fileName: evidence.file.fileName.trim(),
+      fileSize: evidence.file.fileSize || null,
+      fileType: evidence.file.fileType || null
+    })
   }
+
+  console.log('🔍 Evidence entries to create:', evidenceEntries)
 
   if (evidenceEntries.length > 0) {
     await prisma.evidence.createMany({
