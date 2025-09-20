@@ -67,18 +67,13 @@ export async function GET(
         }
       }
       
-      // Add indicator data
-      pillarData[pillarKey].indicators[response.indicatorId] = {
-        id: response.indicatorId,
-        value: response.rawValue,
-        evidence: {},
-        lastModified: response.updatedAt
-      }
-      
-      // Add evidence data
+      // Add indicator data with evidence properly merged
+      const evidence: any = {}
       if (response.evidence && response.evidence.length > 0) {
-        const evidence: any = {}
+        console.log(`🔍 Processing evidence for indicator ${response.indicatorId}:`, response.evidence);
         response.evidence.forEach(ev => {
+          console.log(`🔍 Evidence item:`, { type: ev.type, fileName: ev.fileName, url: ev.url, description: ev.description });
+          
           if (ev.type === 'FILE' && ev.fileName) {
             evidence.file = {
               fileName: ev.fileName,
@@ -88,39 +83,69 @@ export async function GET(
               description: ev.description || '',
               _persisted: true
             }
+            console.log(`✅ Created file evidence:`, evidence.file);
           } else if (ev.type === 'LINK' && ev.url) {
             evidence.link = {
               url: ev.url,
               description: ev.description || '',
               _persisted: true
             }
+            console.log(`✅ Created link evidence:`, evidence.link);
           } else if (ev.type === 'LINK' && ev.description && !ev.url) {
             evidence.text = {
               description: ev.description,
               _persisted: true
             }
+            console.log(`✅ Created text evidence:`, evidence.text);
           }
         })
+      }
+      
+      console.log(`🔍 Final evidence for ${response.indicatorId}:`, evidence);
+      
+      // Create indicator with evidence properly attached
+      pillarData[pillarKey].indicators[response.indicatorId] = {
+        id: response.indicatorId,
+        value: response.rawValue,
+        evidence: evidence, // Evidence is now properly attached to the indicator
+        lastModified: response.updatedAt
+      }
+      
+      // Also store evidence separately for backward compatibility
+      if (Object.keys(evidence).length > 0) {
         pillarData[pillarKey].evidence[response.indicatorId] = evidence
       }
     })
     
-    // Calculate pillar progress
+    // Calculate pillar progress with proper evidence consideration
     Object.keys(pillarData).forEach(pillarKey => {
       const pillarId = parseInt(pillarKey.replace('pillar_', ''))
       const indicators = pillarData[pillarKey].indicators
       const totalIndicators = Object.keys(indicators).length
-      const completedIndicators = Object.values(indicators).filter((ind: any) => 
-        ind.value !== null && ind.value !== undefined && ind.value !== ""
-      ).length
+      
+      // Count completed indicators (those with values OR evidence)
+      const completedIndicators = Object.values(indicators).filter((ind: any) => {
+        const hasValue = ind.value !== null && ind.value !== undefined && ind.value !== ""
+        const hasEvidence = ind.evidence && (
+          ind.evidence.text?.description ||
+          ind.evidence.link?.url ||
+          ind.evidence.file?.fileName
+        )
+        return hasValue || hasEvidence
+      }).length
       
       pillarData[pillarKey].completion = totalIndicators > 0 ? (completedIndicators / totalIndicators) * 100 : 0
       
-      // Calculate average score
-      const totalScore = Object.values(indicators).reduce((sum: number, ind: any) => {
+      // Calculate average score (only for indicators with values)
+      const indicatorsWithValues = Object.values(indicators).filter((ind: any) => 
+        ind.value !== null && ind.value !== undefined && ind.value !== ""
+      )
+      
+      const totalScore = indicatorsWithValues.reduce((sum: number, ind: any) => {
         return sum + (ind.value ? (ind.value / 100) * 100 : 0) // Simplified scoring
       }, 0)
-      pillarData[pillarKey].score = totalIndicators > 0 ? totalScore / totalIndicators : 0
+      
+      pillarData[pillarKey].score = indicatorsWithValues.length > 0 ? totalScore / indicatorsWithValues.length : 0
     })
 
     const transformedApplication = {
@@ -135,6 +160,15 @@ export async function GET(
       certifications: application.certifications,
       adminReviews: application.adminReviews
     }
+
+    console.log('🔍 API returning transformed application:', {
+      id: transformedApplication.id,
+      pillarDataKeys: Object.keys(pillarData),
+      pillar1Indicators: pillarData.pillar_1 ? Object.keys(pillarData.pillar_1.indicators || {}) : [],
+      pillar2Indicators: pillarData.pillar_2 ? Object.keys(pillarData.pillar_2.indicators || {}) : [],
+      pillar1Completion: pillarData.pillar_1?.completion,
+      pillar2Completion: pillarData.pillar_2?.completion
+    });
 
     return NextResponse.json({
       success: true,
@@ -154,10 +188,13 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    console.log('🚀 PUT /api/applications/enhanced/[id] called')
     const session = await getServerSession(authOptions)
     if (!session?.user) {
+      console.log('❌ No session found')
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+    console.log('✅ Session found for user:', session.user.email)
 
     // Get user ID from session
     let userId = session.user.id
@@ -176,6 +213,15 @@ export async function PUT(
     const { id } = await params
     const body = await request.json()
     const { status, institutionData, pillarData, indicatorResponses, scores } = body
+    
+    console.log('📥 Received data:', {
+      id,
+      status,
+      hasInstitutionData: !!institutionData,
+      hasPillarData: !!pillarData,
+      indicatorResponsesCount: indicatorResponses?.length || 0,
+      sampleIndicatorResponse: indicatorResponses?.[0]
+    })
 
     // Check if user owns this application (security check)
     const existingApp = await prisma.application.findUnique({
@@ -191,7 +237,7 @@ export async function PUT(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    // Start transaction for atomic updates with timeout
+    // Start transaction for atomic updates with increased timeout
     const result = await prisma.$transaction(async (tx) => {
       console.log('Starting transaction for application:', id)
       
@@ -235,143 +281,161 @@ export async function PUT(
       if (indicatorResponses && Array.isArray(indicatorResponses)) {
         console.log('Processing indicator responses:', indicatorResponses.length)
         
-        // Filter valid responses
+        // Filter valid responses with better validation
         const validResponses = indicatorResponses.filter(response => {
-          const { indicatorId, pillarId } = response;
-          return indicatorId && indicatorId !== 'undefined' && pillarId;
+          const { indicatorId, pillarId, rawValue } = response;
+          // Include responses that have either a value or evidence
+          const hasValue = rawValue !== null && rawValue !== undefined && rawValue !== "";
+          const hasEvidence = response.evidence && (
+            response.evidence.text?.description ||
+            response.evidence.link?.url ||
+            response.evidence.file?.fileName
+          );
+          return indicatorId && indicatorId !== 'undefined' && pillarId && (hasValue || hasEvidence);
         });
         
         console.log('Valid responses:', validResponses.length)
 
         if (validResponses.length > 0) {
-          console.log('Creating batch operations for indicator responses')
+          console.log('Processing indicator responses:', validResponses.length)
           
-          // Use batch operations for better performance
-          const indicatorResponseData = validResponses.map(response => {
+          // OPTIMIZED: Use upsert operations in parallel for better performance
+          const upsertPromises = validResponses.map(response => {
             const { indicatorId, pillarId, rawValue, normalizedScore, measurementUnit, hasEvidence } = response;
-            return {
-              applicationId: id,
-              indicatorId: indicatorId,
-              pillarId: pillarId,
-              rawValue: rawValue,
-              normalizedScore: normalizedScore,
-              measurementUnit: measurementUnit,
-              hasEvidence: hasEvidence || false
-            };
-          });
-
-          console.log('Deleting existing indicator responses')
-          // Delete existing responses for this application
-          await tx.indicatorResponse.deleteMany({
-            where: { applicationId: id }
-          });
-
-          console.log('Creating new indicator responses in batch')
-          // Create new responses in batch
-          await tx.indicatorResponse.createMany({
-            data: indicatorResponseData,
-            skipDuplicates: true
-          });
-          
-          console.log('Indicator responses created successfully')
-
-          // Process evidence separately for each response
-          console.log('Processing evidence for', validResponses.length, 'responses')
-          for (const response of validResponses) {
-            const { indicatorId, evidence } = response;
-            
-            console.log('Processing evidence for indicator:', indicatorId)
-            
-            // Get the created indicator response
-            const indicatorResponse = await tx.indicatorResponse.findUnique({
+            return tx.indicatorResponse.upsert({
               where: {
                 applicationId_indicatorId: {
                   applicationId: id,
                   indicatorId: indicatorId
                 }
+              },
+              create: {
+                applicationId: id,
+                indicatorId: indicatorId,
+                pillarId: pillarId,
+                rawValue: rawValue,
+                normalizedScore: normalizedScore,
+                measurementUnit: measurementUnit,
+                hasEvidence: hasEvidence || false
+              },
+              update: {
+                pillarId: pillarId,
+                rawValue: rawValue,
+                normalizedScore: normalizedScore,
+                measurementUnit: measurementUnit,
+                hasEvidence: hasEvidence || false
               }
             });
+          });
 
-            if (!indicatorResponse) {
-              console.log('Indicator response not found for:', indicatorId)
-              continue
-            }
+          console.log('Upserting indicator responses in parallel')
+          await Promise.all(upsertPromises);
+          console.log('Indicator responses processed successfully')
 
-            // Save evidence if provided
-            if (evidence && (
-              evidence.text?.description ||
-              evidence.link?.url ||
-              evidence.file?.fileName
-            )) {
-            
-            // Delete existing evidence for this indicator response
-            await tx.evidence.deleteMany({
-              where: {
-                indicatorResponseId: indicatorResponse.id
+          // OPTIMIZED: Process evidence in parallel to reduce transaction time
+          console.log('Processing evidence for', validResponses.length, 'responses')
+          
+          // Get all indicator responses AFTER upsert operations complete
+          const indicatorResponses = await tx.indicatorResponse.findMany({
+            where: { applicationId: id },
+            select: { id: true, indicatorId: true }
+          })
+          
+          console.log('Found indicator responses:', indicatorResponses.length)
+          
+          // Process evidence in parallel
+          const evidencePromises = validResponses
+            .filter(response => response.evidence && (
+              response.evidence.text?.description ||
+              response.evidence.link?.url ||
+              response.evidence.file?.fileName
+            ))
+            .map(async (response) => {
+              const { indicatorId, evidence } = response;
+              console.log(`🔍 Processing evidence for indicator ${indicatorId}:`, evidence);
+              
+              const indicatorResponse = indicatorResponses.find(ir => ir.indicatorId === indicatorId);
+              if (!indicatorResponse) {
+                console.log('❌ Indicator response not found for:', indicatorId)
+                console.log('Available indicator responses:', indicatorResponses.map(ir => ir.indicatorId))
+                return;
+              }
+              
+              console.log(`✅ Evidence found for indicator ${indicatorId}, processing...`);
+              
+              // Delete existing evidence for this indicator response
+              await tx.evidence.deleteMany({
+                where: {
+                  indicatorResponseId: indicatorResponse.id
+                }
+              })
+
+              // Build evidence records
+              const recordsToCreate: Array<{
+                type: 'FILE' | 'LINK'
+                fileName: string | null
+                fileSize: number | null
+                fileType: string | null
+                url: string
+                description: string | null
+              }> = []
+
+              // Text evidence (stored as LINK type with description only)
+              if (evidence.text?.description && evidence.text.description.trim() !== '') {
+                recordsToCreate.push({
+                  type: 'LINK',
+                  fileName: null,
+                  fileSize: null,
+                  fileType: null,
+                  url: '',
+                  description: evidence.text.description.trim()
+                })
+              }
+
+              // Link evidence
+              if (evidence.link?.url && evidence.link.url.trim() !== '') {
+                recordsToCreate.push({
+                  type: 'LINK',
+                  fileName: null,
+                  fileSize: null,
+                  fileType: null,
+                  url: evidence.link.url.trim(),
+                  description: (evidence.link.description || '').trim() || null
+                })
+              }
+
+              // File evidence
+              if (evidence.file?.fileName && evidence.file.fileName.trim() !== '') {
+                recordsToCreate.push({
+                  type: 'FILE',
+                  fileName: evidence.file.fileName,
+                  fileSize: evidence.file.fileSize || null,
+                  fileType: evidence.file.fileType || null,
+                  url: evidence.file.url || '',
+                  description: (evidence.file.description || '').trim() || null
+                })
+              }
+
+              // Create evidence records
+              if (recordsToCreate.length > 0) {
+                console.log('Creating evidence records:', recordsToCreate.length)
+                await tx.evidence.createMany({
+                  data: recordsToCreate.map(record => ({
+                    indicatorResponseId: indicatorResponse.id,
+                    applicationId: id, // Add the missing applicationId
+                    ...record
+                  }))
+                })
+                console.log('Evidence records created successfully')
+              } else {
+                console.log('No evidence records to create for indicator:', indicatorId)
               }
             })
-
-            // Build evidence records
-            const recordsToCreate: Array<{
-              type: 'FILE' | 'LINK'
-              fileName: string | null
-              fileSize: number | null
-              fileType: string | null
-              url: string
-              description: string | null
-            }> = []
-
-            // Text evidence (stored as LINK type with description only)
-            if (evidence.text?.description && evidence.text.description.trim() !== '') {
-              recordsToCreate.push({
-                type: 'LINK',
-                fileName: null,
-                fileSize: null,
-                fileType: null,
-                url: '',
-                description: evidence.text.description.trim()
-              })
-            }
-
-            // Link evidence
-            if (evidence.link?.url && evidence.link.url.trim() !== '') {
-              recordsToCreate.push({
-                type: 'LINK',
-                fileName: null,
-                fileSize: null,
-                fileType: null,
-                url: evidence.link.url.trim(),
-                description: (evidence.link.description || '').trim() || null
-              })
-            }
-
-            // File evidence
-            if (evidence.file?.fileName && evidence.file.fileName.trim() !== '') {
-              recordsToCreate.push({
-                type: 'FILE',
-                fileName: evidence.file.fileName,
-                fileSize: evidence.file.fileSize || null,
-                fileType: evidence.file.fileType || null,
-                url: evidence.file.url || '',
-                description: (evidence.file.description || '').trim() || null
-              })
-            }
-
-            // Create evidence records
-            if (recordsToCreate.length > 0) {
-              console.log('Creating evidence records:', recordsToCreate.length)
-              await tx.evidence.createMany({
-                data: recordsToCreate.map(record => ({
-                  indicatorResponseId: indicatorResponse.id,
-                  applicationId: id, // Add the missing applicationId
-                  ...record
-                }))
-              })
-              console.log('Evidence records created successfully')
-            } else {
-              console.log('No evidence records to create for indicator:', indicatorId)
-            }
-            }
+          
+          // Execute all evidence operations in parallel
+          if (evidencePromises.length > 0) {
+            console.log('Processing evidence in parallel for', evidencePromises.length, 'indicators')
+            await Promise.all(evidencePromises)
           }
         }
       }
@@ -411,7 +475,7 @@ export async function PUT(
                 scoreData: {
                   pillarScores: calculatedScores.pillars,
                   recommendations: calculatedScores.recommendations
-                }
+                } as any
               }
             })
           }
@@ -423,8 +487,8 @@ export async function PUT(
       console.log('Transaction completed successfully')
       return updatedApplication
     }, {
-      timeout: 30000, // 30 seconds timeout
-      maxWait: 10000, // 10 seconds max wait
+      timeout: 60000, // 60 seconds timeout for large datasets
+      maxWait: 15000, // 15 seconds max wait
     })
     
     console.log('Application update completed successfully')
@@ -433,7 +497,7 @@ export async function PUT(
       success: true,
       data: result
     })
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error updating application:', error)
     console.error('Error details:', {
       message: error.message,

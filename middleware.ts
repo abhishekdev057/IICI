@@ -17,20 +17,31 @@ export default withAuth(
     const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route))
 
     if (isProtectedRoute) {
-      // Admin routes require ADMIN or SUPER_ADMIN role
-      if (pathname.startsWith("/admin")) {
-        if (!token || (token.role !== "ADMIN" && token.role !== "SUPER_ADMIN")) {
-          const authUrl = new URL("/auth", req.url)
-          authUrl.searchParams.set("callbackUrl", req.url)
-          return NextResponse.redirect(authUrl)
-        }
-      }
-
-      // All other protected routes require authentication
-      if (!token) {
+      // Check if token exists and has valid user data
+      if (!token || !token.sub) {
+        console.log("❌ No valid token found, redirecting to auth")
         const authUrl = new URL("/auth", req.url)
         authUrl.searchParams.set("callbackUrl", req.url)
         return NextResponse.redirect(authUrl)
+      }
+
+      // Check if user is active (if this info is available in token)
+      if ((token as any).isActive === false) {
+        console.log("❌ User account is inactive, redirecting to auth")
+        const authUrl = new URL("/auth", req.url)
+        authUrl.searchParams.set("error", "AccountInactive")
+        return NextResponse.redirect(authUrl)
+      }
+
+      // Admin routes require ADMIN or SUPER_ADMIN role
+      if (pathname.startsWith("/admin")) {
+        if (!token.role || (token.role !== "ADMIN" && token.role !== "SUPER_ADMIN")) {
+          console.log("❌ Insufficient permissions for admin route")
+          const authUrl = new URL("/auth", req.url)
+          authUrl.searchParams.set("callbackUrl", req.url)
+          authUrl.searchParams.set("error", "InsufficientPermissions")
+          return NextResponse.redirect(authUrl)
+        }
       }
 
       // If ADMIN or SUPER_ADMIN, always use admin dashboard, not user dashboard/application
@@ -56,7 +67,16 @@ export default withAuth(
   },
   {
     callbacks: {
-      authorized: () => true
+      authorized: ({ token, req }) => {
+        // Allow public routes
+        const publicRoutes = ["/", "/auth"]
+        if (publicRoutes.includes(req.nextUrl.pathname)) {
+          return true
+        }
+        
+        // For protected routes, require a valid token
+        return !!token
+      }
     },
   }
 )

@@ -656,7 +656,7 @@ function DashboardContent() {
           </TabsContent>
 
           <TabsContent value="history">
-            <HistoricalTracking history={historicalData} currentScore={overallScore} />
+            <HistoricalTracking history={historicalData as any} currentScore={overallScore} />
           </TabsContent>
         </Tabs>
       </div>

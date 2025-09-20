@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Progress } from "@/components/ui/progress"
-import { useData } from "@/contexts/data-context"
+import { useApplication } from "@/contexts/application-context"
 import { CertificateViewer } from "./certificate-viewer"
 import { DetailedAnalysis } from "./detailed-analysis"
 import { RecommendationsPanel } from "./recommendations-panel"
@@ -14,10 +14,10 @@ import { ComparisonView } from "./comparison-view"
 import { Award, TrendingUp, FileText, BarChart3, Download, Share2 } from "lucide-react"
 
 export function AssessmentResults() {
-  const { state } = useData()
+  const { state } = useApplication()
   const [activeTab, setActiveTab] = useState("overview")
 
-  const application = state.currentApplication
+  const application = state.application
   const scores = application?.scores
   const institutionData = application?.institutionData
 
@@ -36,7 +36,7 @@ export function AssessmentResults() {
 
   const overallScore = scores.overallScore
   const certificationLevel = scores.certificationLevel
-  const pillarScores = scores.pillars.map((p) => p.averageScore)
+  const pillarScores = scores.pillars.map((p: any) => p.averageScore)
 
   const getCertificationColor = (level: string) => {
     switch (level) {
@@ -96,13 +96,13 @@ export function AssessmentResults() {
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-primary">
-                {pillarScores.filter((score) => score >= 70).length}/6
+                {pillarScores.filter((score: any) => score >= 70).length}/6
               </div>
               <p className="text-sm text-muted-foreground">Strong Pillars</p>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-secondary">
-                {pillarScores.filter((score) => score < 50).length}
+                {pillarScores.filter((score: any) => score < 50).length}
               </div>
               <p className="text-sm text-muted-foreground">Areas for Improvement</p>
             </div>
@@ -143,7 +143,7 @@ export function AssessmentResults() {
                 <CardTitle>Pillar Performance</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {scores.pillars.map((pillar, index) => (
+                {scores.pillars.map((pillar: any, index: any) => (
                   <div key={pillar.id} className="space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-medium">{pillar.name}</span>
@@ -170,13 +170,13 @@ export function AssessmentResults() {
                       <p className="text-sm font-medium">Strongest Area</p>
                       <p className="text-sm text-muted-foreground">
                         {
-                          scores.pillars.reduce((max, pillar) =>
+                          scores.pillars.reduce((max: any, pillar: any) =>
                             pillar.averageScore > max.averageScore ? pillar : max,
                           ).name
                         }{" "}
                         (
                         {Math.round(
-                          scores.pillars.reduce((max, pillar) =>
+                          scores.pillars.reduce((max: any, pillar: any) =>
                             pillar.averageScore > max.averageScore ? pillar : max,
                           ).averageScore,
                         )}
@@ -190,13 +190,13 @@ export function AssessmentResults() {
                       <p className="text-sm font-medium">Priority for Improvement</p>
                       <p className="text-sm text-muted-foreground">
                         {
-                          scores.pillars.reduce((min, pillar) =>
+                          scores.pillars.reduce((min: any, pillar: any) =>
                             pillar.averageScore < min.averageScore ? pillar : min,
                           ).name
                         }{" "}
                         (
                         {Math.round(
-                          scores.pillars.reduce((min, pillar) =>
+                          scores.pillars.reduce((min: any, pillar: any) =>
                             pillar.averageScore < min.averageScore ? pillar : min,
                           ).averageScore,
                         )}

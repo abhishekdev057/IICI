@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Process indicator responses into pillar structure
-    const pillarData = {}
+    const pillarData: any = {}
     const indicatorDefinitions = getIndicatorDefinitions()
 
     application.indicatorResponses.forEach(response => {
@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
       }
 
       // Get indicator definition
-      const indicatorDef = indicatorDefinitions[response.indicatorId] || {
+      const indicatorDef = (indicatorDefinitions as any)[response.indicatorId] || {
         shortName: response.indicatorId,
         description: 'Assessment indicator',
         measurementUnit: response.measurementUnit
@@ -169,8 +169,8 @@ export async function GET(request: NextRequest) {
       indicators: application.indicatorResponses.map(response => ({
         id: response.indicatorId,
         pillarId: response.pillarId,
-        shortName: indicatorDefinitions[response.indicatorId]?.shortName || response.indicatorId,
-        description: indicatorDefinitions[response.indicatorId]?.description || 'Assessment indicator',
+        shortName: (indicatorDefinitions as any)[response.indicatorId]?.shortName || response.indicatorId,
+        description: (indicatorDefinitions as any)[response.indicatorId]?.description || 'Assessment indicator',
         rawValue: response.rawValue,
         normalizedScore: response.normalizedScore,
         measurementUnit: response.measurementUnit,
@@ -346,7 +346,7 @@ function generateRecommendations(pillarData: any, overallScore: number) {
         "5": "Strategic Intelligence & Collaboration",
         "6": "Performance Measurement & Improvement"
       }
-      recommendations.push(`Strengthen ${pillarNames[pillarId]} to improve your overall innovation maturity.`)
+      recommendations.push(`Strengthen ${(pillarNames as any)[pillarId]} to improve your overall innovation maturity.`)
     }
   })
 

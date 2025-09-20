@@ -64,7 +64,7 @@ export class DatabaseService {
       data: {
         userId,
         ...data
-      }
+      } as any
     })
   }
 
@@ -75,7 +75,7 @@ export class DatabaseService {
       create: {
         userId,
         ...data
-      }
+      } as any
     })
   }
 
@@ -248,9 +248,9 @@ export class DatabaseService {
     const scores = ScoringEngine.processFormData(formData)
 
     // Convert certification level to database enum format
-    const certificationLevel = scores.certificationLevel === 'Not Certified' ? 'NOT_CERTIFIED' : 
-                              scores.certificationLevel === 'Certified' ? 'CERTIFIED' : 
-                              scores.certificationLevel === 'Gold' ? 'GOLD' : 'NOT_CERTIFIED'
+    const certificationLevel = (scores.certificationLevel as any) === 'Not Certified' ? 'NOT_CERTIFIED' : 
+                              (scores.certificationLevel as any) === 'Certified' ? 'CERTIFIED' : 
+                              (scores.certificationLevel as any) === 'Gold' ? 'GOLD' : 'NOT_CERTIFIED'
 
     // Save score audit
     const scoreAudit = await prisma.scoreAudit.create({
@@ -262,7 +262,7 @@ export class DatabaseService {
         overallScore: scores.overallScore,
         certificationLevel: certificationLevel,
         calculatedBy: calculatedBy,
-        scoreData: scores
+        scoreData: scores as any
       }
     })
 

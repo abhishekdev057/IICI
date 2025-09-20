@@ -97,13 +97,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'User not found in database' }, { status: 404 })
     }
 
-    // Check if user already has an application
-    const existingApp = await prisma.application.findFirst({
-      where: { userId: userId },
+    // Check if user already has an application - ENHANCED duplicate prevention
+    const existingApp = await prisma.application.findUnique({
+      where: { userId: userId } as any, // Now uses unique constraint for better performance
       include: { institutionData: true }
     })
 
     if (existingApp) {
+      console.log('✅ Found existing application for user:', userId)
       return NextResponse.json({
         success: true,
         data: existingApp
@@ -138,24 +139,45 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Create application
-    const application = await prisma.application.create({
-      data: {
-        userId: userId,
-        institutionId: institution.id,
-        status: 'DRAFT',
-        pillarData: {}
-      },
-      include: {
-        institutionData: true
+    // Create application with enhanced error handling
+    let application
+    try {
+      application = await prisma.application.create({
+        data: {
+          userId: userId,
+          institutionId: institution.id,
+          status: 'DRAFT',
+          pillarData: {}
+        },
+        include: {
+          institutionData: true
+        }
+      })
+      console.log('✅ Application created successfully:', application.id)
+    } catch (createError: any) {
+      // Handle race condition - another request might have created the application
+      if (createError.code === 'P2002') {
+        console.log('⚠️ Application already exists (race condition), fetching existing one...')
+        const existingApp = await prisma.application.findUnique({
+          where: { userId: userId } as any,
+          include: { institutionData: true }
+        })
+        
+        if (existingApp) {
+          return NextResponse.json({
+            success: true,
+            data: existingApp
+          })
+        }
       }
-    })
+      throw createError
+    }
 
     return NextResponse.json({
       success: true,
       data: application
     })
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Error creating application:', error)
     
     // Handle specific Prisma errors

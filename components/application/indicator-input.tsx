@@ -146,14 +146,14 @@ export function IndicatorInput({
     }
   }, [evidence]);
 
-  // Handle value change with debouncing
+  // Handle value change with debouncing - OPTIMIZED for real-time updates
   const handleValueChange = useCallback((newValue: any) => {
     setLocalValue(newValue)
     
-    // Debounce the onChange call
+    // Debounce the onChange call - optimized timing
     const timeoutId = setTimeout(() => {
       onChange(newValue)
-    }, 500)
+    }, 150) // Reduced to 150ms for faster real-time updates
     
     return () => clearTimeout(timeoutId)
   }, [onChange])

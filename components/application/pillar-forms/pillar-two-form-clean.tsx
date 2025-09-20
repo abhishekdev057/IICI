@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { CheckCircle, AlertCircle } from "lucide-react"
 import { useApplication } from "@/contexts/application-context"
 
-const pillarTwoIndicators = [
+export const pillarTwoIndicators = [
   {
     id: "2.1.1",
     shortName: "Innovation Budget",

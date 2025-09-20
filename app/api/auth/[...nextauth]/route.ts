@@ -23,37 +23,41 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
-    async session({ session, token }) {
+    async session({ session, token }): Promise<any> {
       if (session.user) {
         try {
           // Always ensure we have the user ID from the token
           const userId = token.sub
           
           if (userId) {
-            // Prefer token role, otherwise fetch
-            let role = (token as any).role as string | undefined
-            let isActive = true
-            if (!role) {
-              const dbUser = await prisma.user.findUnique({
-                where: { id: userId },
-                select: { role: true, isActive: true }
-              })
-              role = dbUser?.role || 'USER'
-              isActive = dbUser?.isActive ?? true
-            } else {
-              // If role came from token, ensure isActive defaults to true
-              isActive = (token as any).isActive ?? true
+            // Always verify user exists in database
+            const dbUser = await prisma.user.findUnique({
+              where: { id: userId },
+              select: { id: true, role: true, isActive: true, email: true }
+            })
+            
+            if (!dbUser) {
+              console.error("❌ User not found in database, revoking session for ID:", userId)
+              // Return null to revoke the session
+              return null
+            }
+            
+            // Check if user is active
+            if (!dbUser.isActive) {
+              console.error("❌ User account is inactive, revoking session for ID:", userId)
+              // Return null to revoke the session
+              return null
             }
             
             // Set session user properties
-            session.user.id = userId
-            session.user.role = (role as any) || 'USER'
-            session.user.isActive = isActive
+            session.user.id = dbUser.id
+            session.user.role = dbUser.role
+            session.user.isActive = dbUser.isActive
             // Mirror application status from token if present
             // @ts-ignore
             session.user.applicationStatus = (token as any).applicationStatus || null
             
-            console.log('✅ Session set with user ID:', userId)
+            console.log('✅ Session verified and set with user ID:', userId)
           } else {
             console.warn("⚠️ No user ID found in token, trying email fallback")
             // Try to find user by email as fallback
@@ -63,41 +67,31 @@ export const authOptions: NextAuthOptions = {
                 select: { id: true, role: true, isActive: true }
               })
               
-              if (dbUser) {
+              if (dbUser && dbUser.isActive) {
                 session.user.id = dbUser.id
                 session.user.role = dbUser.role
                 session.user.isActive = dbUser.isActive
                 console.log('✅ Session set via email fallback:', dbUser.id)
               } else {
-                console.error("❌ User not found by email in session callback:", token.email)
+                console.error("❌ User not found or inactive by email in session callback:", token.email)
+                // Return null to revoke the session
+                return null
               }
+            } else {
+              console.error("❌ No user ID or email found in token")
+              // Return null to revoke the session
+              return null
             }
           }
         } catch (error) {
           console.error("❌ Session callback error:", error)
-          // Last resort: try email lookup
-          if (token.email) {
-            try {
-              const dbUser = await prisma.user.findUnique({
-                where: { email: token.email },
-                select: { id: true, role: true, isActive: true }
-              })
-              
-              if (dbUser) {
-                session.user.id = dbUser.id
-                session.user.role = dbUser.role
-                session.user.isActive = dbUser.isActive
-                console.log('✅ Session set via error fallback:', dbUser.id)
-              }
-            } catch (fallbackError) {
-              console.error("❌ Fallback session lookup failed:", fallbackError)
-            }
-          }
+          // Return null to revoke the session on any error
+          return null
         }
       }
       return session
     },
-    async jwt({ token, user, account, profile }) {
+    async jwt({ token, user, account, profile }): Promise<any> {
       console.log('🔍 JWT Callback - token:', { sub: token.sub, email: token.email })
       console.log('🔍 JWT Callback - account provider:', account?.provider)
       
@@ -157,6 +151,18 @@ export const authOptions: NextAuthOptions = {
       // Enrich token with latest application status for middleware routing
       try {
         if (token.sub) {
+          // First verify user still exists and is active
+          const dbUser = await prisma.user.findUnique({
+            where: { id: token.sub as string },
+            select: { id: true, role: true, isActive: true }
+          })
+          
+          if (!dbUser || !dbUser.isActive) {
+            console.error("❌ User not found or inactive in JWT callback, clearing token")
+            // Clear the token to force re-authentication
+            return {}
+          }
+          
           const latestApp = await prisma.application.findFirst({
             where: { userId: token.sub as string },
             orderBy: { updatedAt: 'desc' },
@@ -164,20 +170,15 @@ export const authOptions: NextAuthOptions = {
           })
           ;(token as any).applicationId = latestApp?.id || null
           ;(token as any).applicationStatus = latestApp?.status || null
-          // If role missing (non-provider path), fetch it here
-          if (!(token as any).role) {
-            const dbUserForRole = await prisma.user.findUnique({
-              where: { id: token.sub as string },
-              select: { role: true, isActive: true }
-            })
-            if (dbUserForRole) {
-              ;(token as any).role = dbUserForRole.role
-              ;(token as any).isActive = dbUserForRole.isActive
-            }
-          }
+          
+          // Ensure role and isActive are set
+          ;(token as any).role = dbUser.role
+          ;(token as any).isActive = dbUser.isActive
         }
       } catch (e) {
-        // Ignore token enrichment errors
+        console.error("❌ Token enrichment error:", e)
+        // Clear the token on database errors to force re-authentication
+        return {}
       }
       return token
     },

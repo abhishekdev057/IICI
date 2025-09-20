@@ -52,6 +52,12 @@ function AuthPageContent() {
         case "Verification":
           setError("Email verification failed. Please try again.");
           break;
+        case "AccountInactive":
+          setError("Your account has been deactivated. Please contact support for assistance.");
+          break;
+        case "InsufficientPermissions":
+          setError("You don't have permission to access this area. Please contact your administrator.");
+          break;
         default:
           setError("An error occurred during sign in. Please try again.");
       }
@@ -101,7 +107,7 @@ function AuthPageContent() {
         target = isAdminRoute ? callbackUrl : "/admin";
       }
 
-      // Try SPA push, then hard navigation as fallback
+      // Try SPA push, then hard navigation as fallback - OPTIMIZED for speed
       try {
         router.push(target);
       } catch {}
@@ -109,7 +115,7 @@ function AuthPageContent() {
         if (typeof window !== 'undefined' && window.location.pathname !== target) {
           window.location.assign(target);
         }
-      }, 200);
+      }, 100); // Reduced from 200ms to 100ms
     }
   }, [session, router, callbackUrl]);
 
@@ -137,13 +143,17 @@ function AuthPageContent() {
     await signOut({ callbackUrl: "/" });
   };
 
-  // Show loading state
+  // Show loading state - OPTIMIZED for faster perceived loading
   if (status === "loading") {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading...</p>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground text-sm">Authenticating...</p>
+          {/* Progress indicator for better UX */}
+          <div className="mt-3 w-32 bg-gray-200 rounded-full h-1 mx-auto">
+            <div className="bg-primary h-1 rounded-full animate-pulse" style={{width: '60%'}}></div>
+          </div>
         </div>
       </div>
     );

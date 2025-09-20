@@ -10,50 +10,45 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { ChevronDown, ChevronRight, CheckCircle, Target } from "lucide-react"
 import { PILLAR_STRUCTURE } from "@/lib/pillar-structure"
 import { useApplication } from "@/contexts/application-context"
-import { validateEvidence } from "@/lib/application-utils"
 
 // Import the original indicators
-import { pillarOneIndicators } from "./pillar-one-form-clean"
+import { pillarSixIndicators } from "./pillar-six-form-clean"
 
-export function PillarOneFormOrganized() {
+// Import centralized utilities
+import { 
+  getIndicatorMeasurementUnit, 
+  getIndicatorMaxScore, 
+  isEvidenceRequired,
+  validateEvidence
+} from "@/lib/application-utils";
+
+export function PillarSixFormOrganized() {
   const { state, updateIndicator, updateEvidence, getPillarProgress } = useApplication()
-  const [currentSubPillar, setCurrentSubPillar] = useState<string>("1.1")
-  const [expandedSubPillars, setExpandedSubPillars] = useState<Set<string>>(new Set(["1.1"]))
+  const [expandedSubPillars, setExpandedSubPillars] = useState<Set<string>>(new Set(["6.1"]))
   
   // Get pillar structure
-  const pillarStructure = PILLAR_STRUCTURE.find(p => p.id === 1)
+  const pillarStructure = PILLAR_STRUCTURE.find(p => p.id === 6)
   if (!pillarStructure) return null
 
   const application = state.application
-  if (!application) {
-    console.log('🔍 PillarOneFormOrganized: No application in state');
-    return null;
-  }
+  if (!application) return null
 
-  const pillarData = application.pillarData.pillar_1 || { indicators: {}, evidence: {} }
-  
-  console.log('🔍 PillarOneFormOrganized: Received data:', {
-    hasApplication: !!application,
-    pillarDataKeys: Object.keys(application.pillarData),
-    pillar1Data: pillarData,
-    indicators: Object.keys(pillarData.indicators || {}),
-    evidence: Object.keys((pillarData as any).evidence || {})
-  });
+  const pillarData = application.pillarData.pillar_6 || { indicators: {}, evidence: {} }
 
   const handleIndicatorChange = useCallback((indicatorId: string, value: any) => {
-    updateIndicator(1, indicatorId, value)
+    updateIndicator(6, indicatorId, value)
   }, [updateIndicator])
 
   const handleEvidenceChange = useCallback((indicatorId: string, evidenceData: any) => {
-    updateEvidence(1, indicatorId, evidenceData)
+    updateEvidence(6, indicatorId, evidenceData)
   }, [updateEvidence])
   
 
-  const getSubPillarCompletion = (subPillarId: string) => {
+  const getSubPillarCompletion = useCallback((subPillarId: string) => {
     const subPillar = pillarStructure.subPillars.find(sp => sp.id === subPillarId)
     if (!subPillar) return 0
     
-    const indicators = pillarOneIndicators.filter(ind => subPillar.indicators.includes(ind.id))
+    const indicators = pillarSixIndicators.filter(ind => subPillar.indicators.includes(ind.id))
     const completed = indicators.filter(ind => {
       const indicatorData = pillarData.indicators?.[ind.id]
       const value = indicatorData?.value
@@ -62,26 +57,8 @@ export function PillarOneFormOrganized() {
       // If no value, indicator is not complete
       if (value === null || value === undefined || value === "") return false
       
-      // Check if evidence is conditionally required (same logic as step validation)
-      const measurementUnit = ind.measurementUnit
-      let evidenceRequired = false
-      
-      if (measurementUnit.includes('Binary')) {
-        evidenceRequired = Number(value) === 1
-      } else if (measurementUnit.includes('Percentage')) {
-        evidenceRequired = Number(value) > 50
-      } else if (measurementUnit === 'Number') {
-        evidenceRequired = Number(value) > 50
-      } else if (measurementUnit.includes('Score')) {
-        const maxScore = ind.maxScore || 2
-        evidenceRequired = Number(value) > (maxScore * 0.5)
-      } else if (measurementUnit.includes('Hours')) {
-        evidenceRequired = Number(value) > 20
-      } else if (measurementUnit === 'Ratio') {
-        evidenceRequired = false
-      } else {
-        evidenceRequired = false
-      }
+      // Check if evidence is conditionally required using centralized function
+      const evidenceRequired = isEvidenceRequired(ind.id, value)
       
       // Check if evidence is provided when required using centralized validation
       if (evidenceRequired) {
@@ -94,25 +71,28 @@ export function PillarOneFormOrganized() {
     })
     
     return indicators.length > 0 ? (completed.length / indicators.length) * 100 : 0
-  }
+  }, [pillarData, pillarStructure])
 
   const getSubPillarScore = (subPillarId: string) => {
     const subPillar = pillarStructure.subPillars.find(sp => sp.id === subPillarId)
     if (!subPillar) return 0
     
-    const indicators = pillarOneIndicators.filter(ind => subPillar.indicators.includes(ind.id))
+    const indicators = pillarSixIndicators.filter(ind => subPillar.indicators.includes(ind.id))
     const totalScore = indicators.reduce((sum, ind) => {
       const value = pillarData.indicators?.[ind.id]?.value
       if (value === null || value === undefined || value === "") return sum
       
       // Simple scoring logic - in real app this would use the scoring engine
-      if (ind.measurementUnit.includes('Score')) {
-        const maxScore = ind.maxScore || 2
+      const measurementUnit = getIndicatorMeasurementUnit(ind.id)
+      if (measurementUnit.includes('Score')) {
+        const maxScore = getIndicatorMaxScore(ind.id)
         return sum + (value / maxScore) * 100
-      } else if (ind.measurementUnit.includes('Percentage')) {
+      } else if (measurementUnit.includes('Percentage')) {
         return sum + Math.min(value, 100)
-      } else if (ind.measurementUnit.includes('Binary')) {
+      } else if (measurementUnit.includes('Binary')) {
         return sum + (value ? 100 : 0)
+      } else if (measurementUnit.includes('Hours')) {
+        return sum + Math.min((value / 40) * 100, 100)
       }
       return sum
     }, 0)
@@ -156,7 +136,7 @@ export function PillarOneFormOrganized() {
         const completion = getSubPillarCompletion(subPillar.id)
         const score = getSubPillarScore(subPillar.id)
         const isExpanded = expandedSubPillars.has(subPillar.id)
-        const subPillarIndicators = pillarOneIndicators.filter(ind => subPillar.indicators.includes(ind.id))
+        const subPillarIndicators = pillarSixIndicators.filter(ind => subPillar.indicators.includes(ind.id))
         
         return (
           <Collapsible key={subPillar.id} open={isExpanded} onOpenChange={() => toggleSubPillar(subPillar.id)}>
@@ -213,7 +193,7 @@ export function PillarOneFormOrganized() {
                     <CardContent className="p-4">
                       <CleanIndicatorInput
                         indicator={indicator}
-                        pillarId={1}
+                        pillarId={6}
                         value={pillarData.indicators?.[indicator.id]?.value || null}
                         evidence={pillarData.indicators?.[indicator.id]?.evidence || {}}
                         onChange={(value) => handleIndicatorChange(indicator.id, value)}

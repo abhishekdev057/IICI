@@ -117,7 +117,7 @@ model InstitutionData {
 // Application management
 model Application {
   id            String            @id @default(cuid())
-  userId        String
+  userId        String            @unique  // CRITICAL: Prevent duplicate applications per user
   institutionId String
   status        ApplicationStatus @default(DRAFT)
   submittedAt   DateTime?
@@ -292,6 +292,7 @@ enum ApplicationStatus {
 }
 
 enum EvidenceType {
+  TEXT
   FILE
   LINK
 }

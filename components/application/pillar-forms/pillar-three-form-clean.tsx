@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { CheckCircle, AlertCircle } from "lucide-react"
 import { useApplication } from "@/contexts/application-context"
 
-const pillarThreeIndicators = [
+export const pillarThreeIndicators = [
   {
     id: "3.1.1",
     shortName: "Process Maturity",

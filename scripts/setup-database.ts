@@ -27,12 +27,12 @@ async function main() {
     await prisma.featurePermission.upsert({
       where: {
         role_feature: {
-          role: permission.role,
+          role: permission.role as any,
           feature: permission.feature
         }
       },
-      update: permission,
-      create: permission
+      update: permission as any,
+      create: permission as any
     })
   }
 

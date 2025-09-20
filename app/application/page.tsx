@@ -31,22 +31,22 @@ export default function ApplicationPage() {
     }
   }, [session, status, router]);
 
-  // Show loading state while checking authentication - OPTIMIZED
+  // Show loading state while checking authentication - OPTIMIZED for speed
   if (status === "loading" || isRedirecting) {
     return (
       <div className="min-h-screen bg-background">
         <Navigation variant="dashboard" title="IIICI Application" />
         <div className="flex items-center justify-center min-h-[80vh]">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-            <p className="text-muted-foreground">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="text-muted-foreground text-sm">
               {status === "loading"
-                ? "Checking authentication..."
+                ? "Loading application..."
                 : "Redirecting to login..."}
             </p>
-            {/* OPTIMIZED: Add progress indicator */}
-            <div className="mt-4 w-64 bg-gray-200 rounded-full h-2 mx-auto">
-              <div className="bg-primary h-2 rounded-full animate-pulse" style={{width: '60%'}}></div>
+            {/* OPTIMIZED: Faster progress indicator */}
+            <div className="mt-3 w-48 bg-gray-200 rounded-full h-1.5 mx-auto">
+              <div className="bg-primary h-1.5 rounded-full animate-pulse" style={{width: '80%'}}></div>
             </div>
           </div>
         </div>

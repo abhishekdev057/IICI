@@ -1,12 +1,13 @@
 "use client"
 
-import { useState, useCallback, useEffect, useRef } from "react"
+import { useState, useCallback, useEffect, useRef, useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Progress } from "@/components/ui/progress"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
@@ -24,6 +25,7 @@ import {
 } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
 import { useApplication } from "@/contexts/application-context"
+import { validateEvidence, isEvidenceRequired } from "@/lib/application-utils"
 
 interface Indicator {
   id: string
@@ -36,6 +38,60 @@ interface Indicator {
   evidenceRequired: string
   maxScore?: number
 }
+
+// Helper functions for evidence requirements (same as validation logic)
+const getIndicatorMeasurementUnit = (indicatorId: string): string => {
+  const definitions = {
+    // Pillar 1
+    "1.1.1": "Score (0-2)", "1.1.2": "Percentage (%)", "1.1.3": "Score (0-2)", "1.1.4": "Score (0-3)",
+    "1.2.1": "Binary (0-1)", "1.2.2": "Percentage (%)", "1.2.3": "Percentage (%)", "1.2.4": "Score (1-5)",
+    "1.3.1": "Score (0-3)", "1.3.2": "Percentage (%)", "1.3.3": "Score (0-2)", "1.3.4": "Percentage (%)",
+    "1.4.1": "Score (0-3)", "1.4.2": "Percentage (%)", "1.4.3": "Binary (0-1)", "1.4.4": "Score (0-2)",
+    
+    // Pillar 2
+    "2.1.1": "Percentage (%)", "2.1.2": "Percentage (%)", "2.1.3": "Score (1-5)",
+    "2.2.1": "Score (0-3)", "2.2.2": "Score (0-3)", "2.2.3": "Hours per employee", "2.2.4": "Score (0-3)", "2.2.5": "Score (0-3)",
+    "2.3.1": "Score (1-5)", "2.3.2": "Score (1-5)", "2.3.3": "Score (1-5)", "2.3.4": "Score (1-5)",
+    
+    // Pillar 3
+    "3.1.1": "Score (1-5)", "3.1.2": "Percentage (%)", "3.1.3": "Score (1-5)", "3.1.4": "Score (1-5)",
+    "3.2.1": "Percentage (%)", "3.2.2": "Score (1-5)", "3.2.3": "Binary (0-1)",
+    "3.3.1": "Score (1-5)", "3.3.2": "Percentage (%)", "3.3.3": "Percentage (%)",
+    "3.4.1": "Score (1-5)", "3.4.2": "Score (1-5)", "3.4.3": "Score (0-3)", "3.4.4": "Score (1-5)",
+    "3.5.1": "Score (1-5)", "3.5.2": "Score (1-5)",
+    
+    // Pillar 4
+    "4.1.1": "Score (1-5)", "4.1.2": "Ratio", "4.1.3": "Score (1-5)",
+    "4.2.1": "Percentage (%)", "4.2.2": "Score (1-5)", "4.2.3": "Percentage (%)",
+    "4.3.1": "Score (0-3)", "4.3.2": "Percentage (%)",
+    "4.4.1": "Percentage (%)", "4.4.2": "Percentage (%)", "4.4.3": "Percentage (%)",
+    
+    // Pillar 5
+    "5.1.1": "Score (1-5)", "5.1.2": "Percentage (%)", "5.1.3": "Percentage (%)", "5.1.4": "Number", "5.1.5": "Score (0-3)",
+    "5.2.1": "Percentage (%)", "5.2.2": "Score (1-5)", "5.2.3": "Percentage (%)", "5.2.4": "Percentage (%)",
+    
+    // Pillar 6
+    "6.1.1": "Percentage (%)", "6.1.2": "Percentage (%)", "6.1.3": "Score (1-5)",
+    "6.2.1": "Score (0-3)", "6.2.2": "Number", "6.2.3": "Score (1-5)",
+    "6.3.1": "Percentage (%)", "6.3.2": "Percentage (%)", "6.3.3": "Number"
+  };
+  return definitions[indicatorId as keyof typeof definitions] || "Percentage (%)";
+};
+
+const getIndicatorMaxScore = (indicatorId: string): number => {
+  const definitions = {
+    "1.1.1": 2, "1.1.2": 100, "1.1.3": 2, "1.1.4": 3, "1.2.1": 1, "1.2.2": 100, "1.2.3": 100, "1.2.4": 5,
+    "1.3.1": 3, "1.3.2": 100, "1.3.3": 2, "1.3.4": 100, "1.4.1": 3, "1.4.2": 100, "1.4.3": 1, "1.4.4": 2,
+    "2.1.1": 100, "2.1.2": 100, "2.1.3": 5, "2.2.1": 3, "2.2.2": 3, "2.2.3": 40, "2.2.4": 3, "2.2.5": 3, "2.3.1": 5, "2.3.2": 5, "2.3.3": 5, "2.3.4": 5,
+    "3.1.1": 5, "3.1.2": 100, "3.1.3": 5, "3.1.4": 5, "3.2.1": 100, "3.2.2": 5, "3.2.3": 1, "3.3.1": 5, "3.3.2": 100, "3.3.3": 100,
+    "3.4.1": 5, "3.4.2": 5, "3.4.3": 3, "3.4.4": 5, "3.5.1": 5, "3.5.2": 5,
+    "4.1.1": 5, "4.1.2": 1, "4.1.3": 5, "4.2.1": 100, "4.2.2": 5, "4.2.3": 100, "4.3.1": 3, "4.3.2": 100,
+    "4.4.1": 100, "4.4.2": 100, "4.4.3": 100, "5.1.1": 5, "5.1.2": 100, "5.1.3": 100, "5.1.4": 5, "5.1.5": 3,
+    "5.2.1": 100, "5.2.2": 5, "5.2.3": 100, "5.2.4": 100, "6.1.1": 100, "6.1.2": 100, "6.1.3": 5, "6.2.1": 3, "6.2.2": 2, "6.2.3": 5,
+    "6.3.1": 100, "6.3.2": 100, "6.3.3": 4
+  };
+  return definitions[indicatorId as keyof typeof definitions] || 100;
+};
 
 interface CleanIndicatorInputProps {
   indicator: Indicator
@@ -59,6 +115,15 @@ export function CleanIndicatorInput({
   const { state } = useApplication()
   const { toast } = useToast()
   
+  // Debug logging for data received (reduced to prevent excessive logging)
+  // console.log(`🔍 CleanIndicatorInput(${indicator.id}): Received props:`, {
+  //   indicatorId: indicator.id,
+  //   pillarId,
+  //   value,
+  //   evidence,
+  //   hasApplication: !!state.application
+  // });
+  
   const [localValue, setLocalValue] = useState(value)
   const [localEvidence, setLocalEvidence] = useState(evidence || {})
   const [isUploading, setIsUploading] = useState(false)
@@ -68,6 +133,9 @@ export function CleanIndicatorInput({
   // Refs to prevent infinite loops
   const isUpdatingEvidenceRef = useRef(false)
   const lastEvidenceRef = useRef(evidence)
+  const valueChangeTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const evidenceUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const evidenceResetTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   
   // Update local state when props change
   useEffect(() => {
@@ -82,21 +150,42 @@ export function CleanIndicatorInput({
     }
   }, [evidence])
   
+  // Cleanup timeouts on unmount
+  useEffect(() => {
+    return () => {
+      if (valueChangeTimeoutRef.current) {
+        clearTimeout(valueChangeTimeoutRef.current)
+      }
+      if (evidenceUpdateTimeoutRef.current) {
+        clearTimeout(evidenceUpdateTimeoutRef.current)
+      }
+      if (evidenceResetTimeoutRef.current) {
+        clearTimeout(evidenceResetTimeoutRef.current)
+      }
+    }
+  }, [])
+  
   // Handle value change with debouncing
   const handleValueChange = useCallback((newValue: any) => {
     setLocalValue(newValue)
     
-    // Debounce the onChange call
-    const timeoutId = setTimeout(() => {
-      onChange(newValue)
-    }, 500)
+    // Clear existing timeout
+    if (valueChangeTimeoutRef.current) {
+      clearTimeout(valueChangeTimeoutRef.current)
+    }
     
-    return () => clearTimeout(timeoutId)
-  }, [onChange])
+    // Debounce the onChange call - OPTIMIZED for real-time updates
+    valueChangeTimeoutRef.current = setTimeout(() => {
+      console.log(`🔄 CleanIndicatorInput calling onChange for ${indicator.id}:`, newValue)
+      onChange(newValue)
+    }, 150) // Optimized to 150ms for faster real-time updates
+  }, [onChange, indicator.id])
   
-  // Handle evidence change
+  // Handle evidence change - ENHANCED with debugging
   const handleEvidenceChange = useCallback((type: 'text' | 'link' | 'file', field: string, evidenceValue: any) => {
-    setLocalEvidence(prev => {
+    console.log(`🔄 handleEvidenceChange called:`, { type, field, evidenceValue, indicatorId: indicator.id })
+    
+    setLocalEvidence((prev: any) => {
       const updatedEvidence = { ...prev }
       
       if (!updatedEvidence[type]) {
@@ -105,24 +194,45 @@ export function CleanIndicatorInput({
       
       (updatedEvidence[type] as any)[field] = evidenceValue
       
+      console.log(`🔄 Updated evidence for ${indicator.id}:`, updatedEvidence)
+      
       return updatedEvidence
     })
-  }, [])
+  }, [indicator.id])
+  
+  // Debounced evidence update to parent - ENHANCED with debugging
+  const debouncedEvidenceUpdate = useCallback((evidenceData: any) => {
+    console.log(`🔄 debouncedEvidenceUpdate called for ${indicator.id}:`, evidenceData)
+    
+    // Clear existing timeouts
+    if (evidenceUpdateTimeoutRef.current) {
+      clearTimeout(evidenceUpdateTimeoutRef.current)
+    }
+    if (evidenceResetTimeoutRef.current) {
+      clearTimeout(evidenceResetTimeoutRef.current)
+    }
+    
+    evidenceUpdateTimeoutRef.current = setTimeout(() => {
+      if (!isUpdatingEvidenceRef.current) {
+        isUpdatingEvidenceRef.current = true
+        console.log(`🔄 Calling onEvidenceChange for ${indicator.id}:`, evidenceData)
+        onEvidenceChange(evidenceData)
+        evidenceResetTimeoutRef.current = setTimeout(() => {
+          isUpdatingEvidenceRef.current = false
+        }, 100)
+      }
+    }, 150) // Optimized to 150ms for faster real-time updates
+  }, [onEvidenceChange, indicator.id])
   
   // Use effect to call parent callback when evidence changes
   useEffect(() => {
     // Only call onEvidenceChange if the evidence has actually changed from the last known value
     const hasChanged = JSON.stringify(localEvidence) !== JSON.stringify(lastEvidenceRef.current)
-    if (hasChanged && !isUpdatingEvidenceRef.current) {
-      isUpdatingEvidenceRef.current = true
-      onEvidenceChange(localEvidence)
+    if (hasChanged) {
       lastEvidenceRef.current = localEvidence
-      // Reset the flag after a short delay to allow for state updates
-      setTimeout(() => {
-        isUpdatingEvidenceRef.current = false
-      }, 100)
+      debouncedEvidenceUpdate(localEvidence)
     }
-  }, [localEvidence, onEvidenceChange])
+  }, [localEvidence, debouncedEvidenceUpdate])
   
   // Handle file upload
   const handleFileUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -162,7 +272,7 @@ export function CleanIndicatorInput({
       setUploadProgress(100)
       
       // Update evidence with file information
-      setLocalEvidence(prev => ({
+      setLocalEvidence((prev: any) => ({
         ...prev,
         file: {
           ...prev.file,
@@ -192,7 +302,7 @@ export function CleanIndicatorInput({
   
   // Remove evidence type
   const removeEvidenceType = useCallback((type: 'text' | 'link' | 'file') => {
-    setLocalEvidence(prev => {
+    setLocalEvidence((prev: any) => {
       const updatedEvidence = { ...prev }
       delete updatedEvidence[type]
       return updatedEvidence
@@ -202,63 +312,30 @@ export function CleanIndicatorInput({
   // Calculate progress
   const hasValue = localValue !== null && localValue !== undefined && localValue !== ""
   
-  // Check if evidence is required based on input value
-  const isEvidenceRequired = () => {
-    if (!hasValue) return false
+  // Check if evidence is required based on input value - use centralized function
+  const evidenceRequired = isEvidenceRequired(indicator.id, localValue)
+  const hasEvidence = validateEvidence(localEvidence)
+
+  // Count evidence types using centralized validation
+  const evidenceCount = useMemo(() => {
+    const hasText = !!(localEvidence?.text?.description && localEvidence.text.description.trim() !== "")
+    const hasLink = !!(localEvidence?.link?.url && localEvidence.link.url.trim() !== "")
+    const hasFile = !!(localEvidence?.file?.fileName && localEvidence.file.fileName.trim() !== "")
     
-    // Binary indicators: evidence required if input is positive (1)
-    if (indicator.measurementUnit.includes('Binary')) {
-      return Number(localValue) === 1
-    }
-    
-    // Percentage indicators: evidence required if input > 50%
-    if (indicator.measurementUnit.includes('Percentage')) {
-      return Number(localValue) > 50
-    }
-    
-    // Number indicators: evidence required if input > 50
-    if (indicator.measurementUnit === 'Number') {
-      return Number(localValue) > 50
-    }
-    
-    // Score indicators: evidence required if input > 50% of max score
-    if (indicator.measurementUnit.includes('Score')) {
-      const maxScore = indicator.maxScore || 5
-      return Number(localValue) > (maxScore * 0.5)
-    }
-    
-    // Hours indicators: evidence required if input > 20 hours
-    if (indicator.measurementUnit.includes('Hours')) {
-      return Number(localValue) > 20
-    }
-    
-    // Ratio indicators: evidence required if input is not empty
-    if (indicator.measurementUnit === 'Ratio') {
-      return true
-    }
-    
-    // Default: evidence required if input is not empty
-    return true
-  }
-  
-  const evidenceRequired = isEvidenceRequired()
-  const hasEvidence = !!(
-    localEvidence.text?.description ||
-    localEvidence.link?.url ||
-    localEvidence.file?.fileName
-  )
+    const count = [hasText, hasLink, hasFile].filter(Boolean).length
+    return { count, total: 3, hasText, hasLink, hasFile }
+  }, [localEvidence])
   const isComplete = hasValue && (!evidenceRequired || hasEvidence)
   
   // Get progress percentage
   const getProgress = () => {
-    let progress = 0
-    if (hasValue) progress += 50
+    if (!hasValue) return 0 // No value = 0% progress
+    
     if (evidenceRequired) {
-      if (hasEvidence) progress += 50
+      return hasEvidence ? 100 : 50 // Value + evidence = 100%, value only = 50%
     } else {
-      progress += 50 // Evidence not required, so full progress
+      return 100 // Value only = 100% (no evidence required)
     }
-    return progress
   }
   
   // Get status badge
@@ -285,16 +362,24 @@ export function CleanIndicatorInput({
       return (
         <div className="space-y-2">
           <Label htmlFor={`${indicator.id}-score`}>Score (0-{maxScore}) <span className="text-red-500">*</span></Label>
-          <Input
-            id={`${indicator.id}-score`}
-            type="number"
-            min="0"
-            max={maxScore}
-            step="0.1"
-            value={localValue || ''}
-            onChange={(e) => handleValueChange(parseFloat(e.target.value) || null)}
-            placeholder={`Enter score between 0 and ${maxScore}`}
-          />
+          <Select 
+            value={localValue?.toString() || ""} 
+            onValueChange={(value) => {
+              console.log(`🎯 Select onValueChange for ${indicator.id}:`, value)
+              handleValueChange(parseFloat(value) || null)
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder={`Select score (0-${maxScore})`} />
+            </SelectTrigger>
+            <SelectContent>
+              {Array.from({ length: maxScore + 1 }, (_, i) => (
+                <SelectItem key={i} value={i.toString()}>
+                  {i} / {maxScore}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       )
     } else if (measurementUnit.includes('Percentage')) {
@@ -308,7 +393,10 @@ export function CleanIndicatorInput({
             max="100"
             step="0.1"
             value={localValue || ''}
-            onChange={(e) => handleValueChange(parseFloat(e.target.value) || null)}
+            onChange={(e) => {
+              console.log(`📊 Percentage onChange for ${indicator.id}:`, e.target.value)
+              handleValueChange(parseFloat(e.target.value) || null)
+            }}
             placeholder="Enter percentage (0-100)"
           />
         </div>
@@ -468,7 +556,14 @@ export function CleanIndicatorInput({
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="input">Input</TabsTrigger>
-            <TabsTrigger value="evidence">Evidence</TabsTrigger>
+            <TabsTrigger value="evidence" className="flex items-center gap-2">
+              Evidence
+              {evidenceCount.count > 0 && (
+                <Badge variant="secondary" className="text-xs h-5 px-1.5">
+                  {evidenceCount.count}/{evidenceCount.total}
+                </Badge>
+              )}
+            </TabsTrigger>
           </TabsList>
           
           <TabsContent value="input" className="space-y-4">
@@ -501,6 +596,35 @@ export function CleanIndicatorInput({
                     <AlertCircle className="h-4 w-4 inline mr-1" />
                     Evidence is required for this input value. Please provide supporting documentation.
                   </p>
+                </div>
+              )}
+              
+              {/* Evidence Summary */}
+              {evidenceCount.count > 0 && (
+                <div className="bg-green-50 border border-green-200 p-3 rounded-md">
+                  <p className="text-sm text-green-700 font-medium mb-2">
+                    Evidence Provided ({evidenceCount.count}/3 types):
+                  </p>
+                  <div className="flex gap-2 flex-wrap">
+                    {evidenceCount.hasText && (
+                      <Badge variant="secondary" className="text-xs">
+                        <FileText className="h-3 w-3 mr-1" />
+                        Text
+                      </Badge>
+                    )}
+                    {evidenceCount.hasLink && (
+                      <Badge variant="secondary" className="text-xs">
+                        <Link className="h-3 w-3 mr-1" />
+                        Link
+                      </Badge>
+                    )}
+                    {evidenceCount.hasFile && (
+                      <Badge variant="secondary" className="text-xs">
+                        <Upload className="h-3 w-3 mr-1" />
+                        File
+                      </Badge>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -598,7 +722,7 @@ export function CleanIndicatorInput({
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setLocalEvidence(prev => ({ ...prev, text: { description: '' } }))}
+                  onClick={() => setLocalEvidence((prev: any) => ({ ...prev, text: { description: '' } }))}
                 >
                   <FileText className="h-4 w-4 mr-2" />
                   Add Text
@@ -608,7 +732,7 @@ export function CleanIndicatorInput({
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setLocalEvidence(prev => ({ ...prev, link: { url: '', description: '' } }))}
+                  onClick={() => setLocalEvidence((prev: any) => ({ ...prev, link: { url: '', description: '' } }))}
                 >
                   <Link className="h-4 w-4 mr-2" />
                   Add Link
