@@ -171,7 +171,7 @@ model Evidence {
   fileName            String?
   fileSize            Int?
   fileType            String?
-  url                 String
+  url                 String?
   description         String?
   uploadedAt          DateTime     @default(now())
 
