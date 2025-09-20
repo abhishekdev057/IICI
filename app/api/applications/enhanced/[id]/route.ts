@@ -32,17 +32,12 @@ export async function GET(
           }
         },
         evidence: true,
-        scoreAudits: {
-          orderBy: { calculatedAt: 'desc' }
-        },
-        certifications: {
-          orderBy: { issuedAt: 'desc' }
-        },
+        scoreAudits: true,
+        certifications: true,
         adminReviews: {
           include: {
             user: true
-          },
-          orderBy: { createdAt: 'desc' }
+          }
         }
       }
     })
