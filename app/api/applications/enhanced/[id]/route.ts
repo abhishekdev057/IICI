@@ -9,12 +9,16 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    console.log('🔍 GET /api/applications/enhanced/[id] called')
     const session = await getServerSession(authOptions)
     if (!session?.user) {
+      console.log('❌ No session found')
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+    console.log('✅ Session found for user:', session.user.email)
 
     const { id } = await params
+    console.log('🔍 Application ID:', id)
     
     // Get application with all related data
     const application = await prisma.application.findUnique({
@@ -41,6 +45,13 @@ export async function GET(
           orderBy: { createdAt: 'desc' }
         }
       }
+    })
+
+    console.log('🔍 Application data from database:', {
+      id: application?.id,
+      indicatorResponsesCount: application?.indicatorResponses?.length,
+      evidenceCount: application?.evidence?.length,
+      sampleIndicatorResponse: application?.indicatorResponses?.[0]
     })
 
     if (!application) {
@@ -99,6 +110,17 @@ export async function GET(
             console.log(`✅ Created link evidence:`, evidence.link);
           }
         })
+      }
+      
+      // Special debugging for indicator 6.1.3
+      if (response.indicatorId === '6.1.3') {
+        console.log(`🔍 SPECIAL DEBUG for 6.1.3:`, {
+          indicatorId: response.indicatorId,
+          rawValue: response.rawValue,
+          evidenceCount: response.evidence?.length,
+          evidence: response.evidence,
+          finalEvidence: evidence
+        });
       }
       
       console.log(`🔍 Final evidence for ${response.indicatorId}:`, evidence);
@@ -170,14 +192,19 @@ export async function GET(
       pillar2Completion: pillarData.pillar_2?.completion
     });
 
+    console.log('✅ Returning transformed application data')
     return NextResponse.json({
       success: true,
       data: transformedApplication
     })
   } catch (error) {
-    console.error('Error fetching application:', error)
+    console.error('❌ Error fetching application:', error)
+    console.error('❌ Error details:', {
+      message: error.message,
+      stack: error.stack
+    })
     return NextResponse.json(
-      { error: 'Failed to fetch application' },
+      { error: 'Failed to fetch application', details: error.message },
       { status: 500 }
     )
   }

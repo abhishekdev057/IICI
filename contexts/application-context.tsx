@@ -437,6 +437,18 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
           indicatorResponsesCount: app.indicatorResponses?.length || 0
         });
         
+        // Special debugging for pillar 6 and indicator 6.1.3
+        if (pillarData.pillar_6) {
+          console.log('🔍 Pillar 6 data:', pillarData.pillar_6);
+          if (pillarData.pillar_6.indicators?.['6.1.3']) {
+            console.log('🔍 Indicator 6.1.3 data:', pillarData.pillar_6.indicators['6.1.3']);
+          } else {
+            console.log('❌ Indicator 6.1.3 not found in pillar 6 data');
+          }
+        } else {
+          console.log('❌ Pillar 6 data not found');
+        }
+        
         // Debug specific pillar data
         if (pillarData.pillar_1) {
           console.log('📥 Pillar 1 data:', {
