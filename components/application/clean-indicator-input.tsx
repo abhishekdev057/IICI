@@ -319,7 +319,8 @@ export function CleanIndicatorInput({
   // Count evidence types using centralized validation
   const evidenceCount = useMemo(() => {
     const hasText = !!(localEvidence?.text?.description && localEvidence.text.description.trim() !== "")
-    const hasLink = !!(localEvidence?.link?.url && localEvidence.link.url.trim() !== "")
+    const hasLink = !!(localEvidence?.link?.url && localEvidence.link.url.trim() !== "") || 
+                   !!(localEvidence?.link?.description && localEvidence.link.description.trim() !== "")
     const hasFile = !!(localEvidence?.file?.fileName && localEvidence.file.fileName.trim() !== "")
     
     const count = [hasText, hasLink, hasFile].filter(Boolean).length

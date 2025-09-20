@@ -10,7 +10,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { ChevronDown, ChevronRight, CheckCircle, Target } from "lucide-react"
 import { PILLAR_STRUCTURE } from "@/lib/pillar-structure"
 import { useApplication } from "@/contexts/application-context"
-import { validateEvidence } from "@/lib/application-utils"
+import { validateEvidence, isEvidenceRequired } from "@/lib/application-utils"
 
 // Import the original indicators
 import { pillarOneIndicators } from "./pillar-one-form-clean"
@@ -62,26 +62,8 @@ export function PillarOneFormOrganized() {
       // If no value, indicator is not complete
       if (value === null || value === undefined || value === "") return false
       
-      // Check if evidence is conditionally required (same logic as step validation)
-      const measurementUnit = ind.measurementUnit
-      let evidenceRequired = false
-      
-      if (measurementUnit.includes('Binary')) {
-        evidenceRequired = Number(value) === 1
-      } else if (measurementUnit.includes('Percentage')) {
-        evidenceRequired = Number(value) > 50
-      } else if (measurementUnit === 'Number') {
-        evidenceRequired = Number(value) > 50
-      } else if (measurementUnit.includes('Score')) {
-        const maxScore = ind.maxScore || 2
-        evidenceRequired = Number(value) > (maxScore * 0.5)
-      } else if (measurementUnit.includes('Hours')) {
-        evidenceRequired = Number(value) > 20
-      } else if (measurementUnit === 'Ratio') {
-        evidenceRequired = false
-      } else {
-        evidenceRequired = false
-      }
+      // Check if evidence is conditionally required using centralized function
+      const evidenceRequired = isEvidenceRequired(ind.id, value)
       
       // Check if evidence is provided when required using centralized validation
       if (evidenceRequired) {
