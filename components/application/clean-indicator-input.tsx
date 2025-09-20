@@ -138,7 +138,7 @@ export function CleanIndicatorInput({
   const evidenceResetTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Debug evidence props for indicator 6.1.3
-  React.useEffect(() => {
+  useEffect(() => {
     if (indicator.id === '6.1.3') {
       console.log(`🔍 CleanIndicatorInput 6.1.3 - Props received:`, {
         indicatorId: indicator.id,
