@@ -27,8 +27,11 @@ export function InstitutionSetup() {
   const application = state.application
 
   useEffect(() => {
+    console.log('🔍 Institution setup - application data:', application)
+    console.log('🔍 Institution setup - institution data:', application?.institutionData)
+    
     if (application?.institutionData) {
-      setFormData({
+      const newFormData = {
         name: application.institutionData.name || "",
         industry: application.institutionData.industry || "",
         organizationSize: application.institutionData.organizationSize || "",
@@ -37,11 +40,16 @@ export function InstitutionSetup() {
         website: application.institutionData.website || "",
         description: application.institutionData.description || "",
         logo: application.institutionData.logo || ""
-      })
+      }
+      console.log('🔍 Institution setup - setting form data:', newFormData)
+      setFormData(newFormData)
+      
       // Set logo preview if logo exists
       if (application.institutionData.logo) {
         setLogoPreview(application.institutionData.logo)
       }
+    } else {
+      console.log('⚠️ Institution setup - no institution data found')
     }
   }, [application?.institutionData])
 

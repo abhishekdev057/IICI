@@ -118,6 +118,15 @@ interface ApplicationContextType {
   getNextIncompleteStep: () => number;
   saveAllPendingChanges: () => Promise<boolean>;
   validateFromDatabase: (step: number) => Promise<{ isValid: boolean; missingItems: string[] }>;
+  validateCompleteApplication: () => Promise<{
+    isValid: boolean;
+    institutionData: { isValid: boolean; missingFields: string[] };
+    pillars: any;
+    overallCompletion: number;
+    totalIndicators: number;
+    completedIndicators: number;
+    missingItems: string[];
+  }>;
 }
 
 const ApplicationContext = createContext<ApplicationContextType | null>(null);
@@ -1454,6 +1463,56 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
     }
   }, [state.application]);
 
+  // Complete application validation function
+  const validateCompleteApplication = useCallback(async (): Promise<{
+    isValid: boolean;
+    institutionData: { isValid: boolean; missingFields: string[] };
+    pillars: any;
+    overallCompletion: number;
+    totalIndicators: number;
+    completedIndicators: number;
+    missingItems: string[];
+  }> => {
+    if (!state.application) {
+      return {
+        isValid: false,
+        institutionData: { isValid: false, missingFields: ['No application found'] },
+        pillars: {},
+        overallCompletion: 0,
+        totalIndicators: 0,
+        completedIndicators: 0,
+        missingItems: ['No application found']
+      };
+    }
+
+    try {
+      const response = await fetch(`/api/applications/enhanced/${state.application.id}/validate-complete`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to validate complete application');
+      }
+
+      const result = await response.json();
+      return result.data;
+    } catch (error: any) {
+      console.error('❌ Error validating complete application:', error);
+      return {
+        isValid: false,
+        institutionData: { isValid: false, missingFields: ['Validation failed'] },
+        pillars: {},
+        overallCompletion: 0,
+        totalIndicators: 0,
+        completedIndicators: 0,
+        missingItems: ['Validation failed']
+      };
+    }
+  }, [state.application]);
+
   // Expose refresh function in context
   const contextValue: ApplicationContextType = {
     state,
@@ -1473,6 +1532,7 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
     debugDataState, // Add debug function
     saveAllPendingChanges, // Add save all pending changes function
     validateFromDatabase, // Add database validation function
+    validateCompleteApplication, // Add complete validation function
   };
   
   return (

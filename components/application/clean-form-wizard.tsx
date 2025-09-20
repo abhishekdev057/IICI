@@ -116,7 +116,8 @@ export function CleanFormWizard() {
     updateIndicator,
     updateEvidence,
     saveAllPendingChanges,
-    validateFromDatabase
+    validateFromDatabase,
+    validateCompleteApplication
   } = useApplication()
   
   const { toast } = useToast()
@@ -469,12 +470,31 @@ export function CleanFormWizard() {
   
   
   
-  // Handle submit
+  // Handle submit with complete validation
   const handleSubmit = useCallback(async () => {
     if (!application) return
     
     setIsSubmitting(true)
     try {
+      // First save all pending changes
+      await saveAllPendingChanges()
+      
+      // Then validate the complete application
+      const validation = await validateCompleteApplication()
+      
+      if (!validation.isValid) {
+        // Show validation dialog with all missing items
+        setValidationInfo({
+          missingItems: validation.missingItems,
+          filledCount: validation.completedIndicators,
+          totalCount: validation.totalIndicators
+        })
+        setShowValidationDialog(true)
+        setIsSubmitting(false)
+        return
+      }
+      
+      // If validation passes, submit the application
       await submitApplication()
       toast({
         title: "Application Submitted",
@@ -490,7 +510,7 @@ export function CleanFormWizard() {
     } finally {
       setIsSubmitting(false)
     }
-  }, [application, submitApplication, toast])
+  }, [application, submitApplication, saveAllPendingChanges, validateCompleteApplication, toast])
   
   // Auto-navigate to next incomplete step when application loads (ONLY ONCE)
   useEffect(() => {
@@ -755,7 +775,7 @@ export function CleanFormWizard() {
                   {application.status === 'draft' && (
                     <Button 
                       onClick={handleSubmit} 
-                      disabled={isSubmitting || overallProgress.completion < 100}
+                      disabled={isSubmitting}
                       className="w-full"
                     >
                       <Lock className="h-4 w-4 mr-2" />
@@ -830,7 +850,7 @@ export function CleanFormWizard() {
                 ) : (
                   <Button 
                     onClick={handleSubmit}
-                    disabled={isSubmitting || overallProgress.completion < 80}
+                    disabled={isSubmitting}
                   >
                     <Lock className="h-4 w-4 mr-2" />
                     Submit Application
