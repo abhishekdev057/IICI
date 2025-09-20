@@ -7,7 +7,7 @@ import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { 
+import {
   CheckCircle, 
   Clock, 
   AlertCircle, 
@@ -31,7 +31,7 @@ import { useApplication } from "@/contexts/application-context"
 import { PILLAR_STRUCTURE } from "@/lib/pillar-structure"
 
 // Import centralized utilities
-import { 
+import {
   getIndicatorMeasurementUnit, 
   getIndicatorMaxScore, 
   isEvidenceRequired,

@@ -405,7 +405,34 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
       
-      const response = await fetch('/api/applications/enhanced', {
+      // First get the list of applications to find the current one
+      const listResponse = await fetch('/api/applications/enhanced', {
+        signal: controller.signal
+      });
+      
+      if (!listResponse.ok) {
+        throw new Error(`Failed to load applications list: ${listResponse.status} ${listResponse.statusText}`);
+      }
+      
+      const { data: applications } = await listResponse.json();
+      
+      if (!applications || applications.length === 0) {
+        console.log('No applications found, creating new one...');
+        // Create new application
+        const createResponse = await fetch('/api/applications/enhanced', { 
+          method: 'POST',
+          signal: controller.signal
+        });
+        if (!createResponse.ok) {
+          throw new Error(`Failed to create application: ${createResponse.status} ${createResponse.statusText}`);
+        }
+        const { data: newApp } = await createResponse.json();
+        applications = [newApp];
+      }
+      
+      // Now get the detailed application data with evidence
+      const appId = applications[0].id;
+      const response = await fetch(`/api/applications/enhanced/${appId}`, {
         signal: controller.signal
       });
       
@@ -421,10 +448,9 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
         throw new Error(`Failed to load applications: ${response.status} ${response.statusText}`);
       }
       
-      const { data: applications } = await response.json();
+      const { data: app } = await response.json();
       
-      if (applications && applications.length > 0) {
-        const app = applications[0];
+      if (app) {
         
         // Use the properly structured pillar data from the API
         // The API now returns evidence properly attached to indicators
@@ -502,96 +528,7 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
           hasUnsavedChanges: false,
         }));
       } else {
-        // Create new application with enhanced error handling
-        console.log('No existing application found, creating new one...');
-        const createResponse = await fetch('/api/applications/enhanced', { method: 'POST' });
-        if (!createResponse.ok) {
-          const errorData = await createResponse.json().catch(() => ({}));
-          console.error('Application creation failed:', {
-            status: createResponse.status,
-            statusText: createResponse.statusText,
-            error: errorData
-          });
-          
-          // Handle specific error cases
-          if (createResponse.status === 409) {
-            // Application already exists (race condition), try to fetch it
-            console.log('⚠️ Application already exists, fetching existing one...');
-            const fetchResponse = await fetch('/api/applications/enhanced');
-            if (fetchResponse.ok) {
-              const responseData = await fetchResponse.json();
-              console.log('🔄 API Response:', responseData);
-              const { data: existingApps } = responseData;
-              if (existingApps && existingApps.length > 0) {
-                const app = existingApps[0];
-                console.log('🔄 First application from API:', app);
-                // Process existing application data...
-                const applicationData: ApplicationData = {
-                  id: app.id,
-                  institutionData: app.institutionData || {
-                    name: "",
-                    industry: "",
-                    organizationSize: "",
-                    country: "",
-                    contactEmail: session.user.email,
-                  },
-                  pillarData: app.pillarData || {}, // This is the transformed data from API
-                  scores: app.scores,
-                  status: app.status?.toLowerCase() || "draft",
-                  submittedAt: app.submittedAt ? new Date(app.submittedAt) : undefined,
-                  lastSaved: new Date(app.lastSaved),
-                  lastModified: new Date(app.lastModified),
-                  currentStep: 0,
-                };
-                
-                console.log('🔄 Loaded application data:', {
-                  id: app.id,
-                  pillarDataKeys: Object.keys(app.pillarData || {}),
-                  pillarData: app.pillarData
-                });
-                
-                setState(prev => ({
-                  ...prev,
-                  application: applicationData,
-                  isLoading: false,
-                  hasUnsavedChanges: false,
-                }));
-                return;
-              }
-            }
-          }
-          
-          throw new Error(`Failed to create application: ${createResponse.status} ${createResponse.statusText}`);
-        }
-        
-        const { data: newApp } = await createResponse.json();
-        console.log('Application created successfully:', newApp);
-        
-        const applicationData: ApplicationData = {
-          id: newApp.id,
-          institutionData: newApp.institutionData || {
-            name: "",
-            industry: "",
-            organizationSize: "",
-            country: "",
-            contactEmail: session.user.email,
-          },
-          pillarData: {},
-          scores: null,
-          status: "draft",
-          lastSaved: new Date(),
-          lastModified: new Date(),
-          currentStep: 0, // New application starts at step 0 (institution setup)
-        };
-        
-        console.log('🎯 New application created, starting at step 0 (institution setup)');
-        
-        setState(prev => ({
-          ...prev,
-          application: applicationData,
-          isLoading: false,
-          hasUnsavedChanges: false,
-        }));
+        throw new Error('No application data received from server');
       }
     } catch (error) {
       console.error('Load error:', error);
