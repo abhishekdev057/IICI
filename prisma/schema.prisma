@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,65 +7,51 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// User management with roles and authentication
 model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  name          String?
-  image         String?
-  emailVerified DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-
-  // Role-based access control
-  role     UserRole @default(USER)
-  isActive Boolean  @default(true)
-
-  // Profile information
-  phone        String?
-  organization String?
-  position     String?
-  department   String?
-
-  // Institution details
+  id              String           @id @default(cuid())
+  email           String           @unique
+  name            String?
+  image           String?
+  emailVerified   DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  role            UserRole         @default(USER)
+  isActive        Boolean          @default(true)
+  phone           String?
+  organization    String?
+  position        String?
+  department      String?
+  accounts        Account[]
+  adminReviews    AdminReview[]
+  applications    Application?
+  certifications  Certification[]
   institutionData InstitutionData?
-
-  // Relationships
-  applications   Application[]
-  adminReviews   AdminReview[]
-  scoreAudits    ScoreAudit[]
-  certifications Certification[]
-  notifications  Notification[]
-
-  // NextAuth integration
-  accounts Account[]
-  sessions Session[]
+  notifications   Notification[]
+  scoreAudits     ScoreAudit[]
+  sessions        Session[]
 
   @@map("users")
 }
 
-// NextAuth Account model
 model Account {
   id                String  @id @default(cuid())
   userId            String
   type              String
   provider          String
   providerAccountId String
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
+  refresh_token     String?
+  access_token      String?
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String? @db.Text
+  id_token          String?
   session_state     String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
   @@map("accounts")
 }
 
-// NextAuth Session model
 model Session {
   id           String   @id @default(cuid())
   sessionToken String   @unique
@@ -79,7 +62,6 @@ model Session {
   @@map("sessions")
 }
 
-// NextAuth VerificationToken model
 model VerificationToken {
   identifier String
   token      String   @unique
@@ -89,10 +71,9 @@ model VerificationToken {
   @@map("verification_tokens")
 }
 
-// Institution data for applications
 model InstitutionData {
-  id               String   @id @default(cuid())
-  userId           String   @unique
+  id               String        @id @default(cuid())
+  userId           String        @unique
   name             String
   logo             String?
   yearFounded      Int?
@@ -104,67 +85,56 @@ model InstitutionData {
   contactPhone     String?
   address          String?
   description      String?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-
-  // Relationships
-  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  applications Application[]
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  applications     Application[]
+  user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("institution_data")
 }
 
-// Application management
 model Application {
-  id            String            @id @default(cuid())
-  userId        String            @unique  // CRITICAL: Prevent duplicate applications per user
-  institutionId String
-  status        ApplicationStatus @default(DRAFT)
-  submittedAt   DateTime?
-  reviewedAt    DateTime?
-  reviewedBy    String?
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
-
-  // Data storage
-  pillarData         Json?               // Store pillar data as JSON for faster access
-  
-  // Relationships
-  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  institutionData    InstitutionData     @relation(fields: [institutionId], references: [id], onDelete: Cascade)
-  indicatorResponses IndicatorResponse[]
-  evidence           Evidence[]
-  scoreAudits        ScoreAudit[]
-  certifications     Certification[]
+  id                 String              @id @default(cuid())
+  userId             String              @unique
+  institutionId      String
+  status             ApplicationStatus   @default(DRAFT)
+  submittedAt        DateTime?
+  reviewedAt         DateTime?
+  reviewedBy         String?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  pillarData         Json?
   adminReviews       AdminReview[]
+  institutionData    InstitutionData     @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  certifications     Certification?
+  evidence           Evidence[]
+  indicatorResponses IndicatorResponse[]
+  scoreAudits        ScoreAudit[]
 
   @@map("applications")
 }
 
-// Indicator responses for scoring
 model IndicatorResponse {
-  id              String   @id @default(cuid())
+  id              String      @id @default(cuid())
   applicationId   String
   indicatorId     String
   pillarId        Int
   rawValue        Json
   normalizedScore Float
   measurementUnit String
-  hasEvidence     Boolean  @default(false)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  // Relationships
-  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
-  evidence    Evidence[]
+  hasEvidence     Boolean     @default(false)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  evidence        Evidence[]
+  application     Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
 
   @@unique([applicationId, indicatorId])
   @@map("indicator_responses")
 }
 
-// Evidence management
 model Evidence {
-  id                  String       @id @default(cuid())
+  id                  String            @id @default(cuid())
   indicatorResponseId String
   applicationId       String
   type                EvidenceType
@@ -173,16 +143,13 @@ model Evidence {
   fileType            String?
   url                 String?
   description         String?
-  uploadedAt          DateTime     @default(now())
-
-  // Relationships
-  indicatorResponse IndicatorResponse @relation(fields: [indicatorResponseId], references: [id], onDelete: Cascade)
-  application       Application       @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  uploadedAt          DateTime          @default(now())
+  application         Application       @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  indicatorResponse   IndicatorResponse @relation(fields: [indicatorResponseId], references: [id], onDelete: Cascade)
 
   @@map("evidence")
 }
 
-// Score audit trail
 model ScoreAudit {
   id                 String             @id @default(cuid())
   applicationId      String
@@ -193,38 +160,31 @@ model ScoreAudit {
   certificationLevel CertificationLevel
   calculatedAt       DateTime           @default(now())
   calculatedBy       String
-  scoreData          Json // Detailed calculations
-
-  // Relationships
-  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
-  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scoreData          Json
+  application        Application        @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("score_audits")
 }
 
-// Certification management
 model Certification {
   id                 String             @id @default(cuid())
-  applicationId      String
+  applicationId      String             @unique
   userId             String
   certificationLevel CertificationLevel
   overallScore       Float
-  pillarScores       Json // {pillarId: score}
+  pillarScores       Json
   issuedAt           DateTime           @default(now())
   expiresAt          DateTime
   certificateUrl     String?
   badgeUrl           String?
   isActive           Boolean            @default(true)
+  application        Application        @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  // Relationships
-  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
-  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([applicationId])
   @@map("certifications")
 }
 
-// Admin review system
 model AdminReview {
   id            String       @id @default(cuid())
   applicationId String
@@ -235,15 +195,12 @@ model AdminReview {
   originalScore Float?
   adjustedScore Float?
   createdAt     DateTime     @default(now())
-
-  // Relationships
-  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
-  user        User        @relation(fields: [reviewerId], references: [id], onDelete: Cascade)
+  application   Application  @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  user          User         @relation(fields: [reviewerId], references: [id], onDelete: Cascade)
 
   @@map("admin_reviews")
 }
 
-// Feature permissions for role-based access
 model FeaturePermission {
   id         String   @id @default(cuid())
   role       UserRole
@@ -259,24 +216,20 @@ model FeaturePermission {
   @@map("feature_permissions")
 }
 
-// User notifications
 model Notification {
-  id        String   @id @default(cuid())
+  id        String           @id @default(cuid())
   userId    String
   title     String
   message   String
   type      NotificationType
-  isRead    Boolean  @default(false)
-  createdAt DateTime @default(now())
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
   readAt    DateTime?
-
-  // Relationships
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("notifications")
 }
 
-// Enums
 enum UserRole {
   USER
   ADMIN
@@ -292,9 +245,9 @@ enum ApplicationStatus {
 }
 
 enum EvidenceType {
-  TEXT
   FILE
   LINK
+  TEXT
 }
 
 enum NotificationType {
