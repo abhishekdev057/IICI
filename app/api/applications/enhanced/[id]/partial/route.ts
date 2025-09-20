@@ -105,8 +105,18 @@ async function updateEvidence(applicationId: string, changes: any) {
     return { error: 'Invalid evidence data' }
   }
 
+  // Check if there's any actual evidence to save
+  const hasEvidence = evidence.text?.description?.trim() ||
+                     evidence.link?.url?.trim() ||
+                     evidence.file?.fileName?.trim()
+
+  if (!hasEvidence) {
+    console.log('ℹ️ No evidence to save for', indicatorId)
+    return { evidenceCount: 0 }
+  }
+
   // First get the indicator response
-  const indicatorResponse = await prisma.indicatorResponse.findUnique({
+  let indicatorResponse = await prisma.indicatorResponse.findUnique({
     where: {
       applicationId_indicatorId: {
         applicationId,
@@ -118,15 +128,14 @@ async function updateEvidence(applicationId: string, changes: any) {
   if (!indicatorResponse) {
     console.log('❌ Indicator response not found for', indicatorId, '- creating new one')
     // Create indicator response if it doesn't exist
-    const newResponse = await prisma.indicatorResponse.create({
+    indicatorResponse = await prisma.indicatorResponse.create({
       data: {
         applicationId,
         indicatorId,
         rawValue: null
       }
     })
-    console.log('✅ Created indicator response:', newResponse.id)
-    return { evidenceCount: 0 }
+    console.log('✅ Created indicator response:', indicatorResponse.id)
   }
 
   // Delete existing evidence for this indicator

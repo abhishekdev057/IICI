@@ -410,8 +410,11 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
       
       // Add timeout to prevent hanging requests
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
-      
+      const timeoutId = setTimeout(() => {
+        console.log('⏰ Request timeout reached, aborting...');
+        controller.abort('Request timeout');
+      }, 15000); // 15 second timeout
+
       // First get the list of applications to find the current one
       const listResponse = await fetch('/api/applications/enhanced', {
         signal: controller.signal
@@ -463,12 +466,20 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
         // The API now returns evidence properly attached to indicators
         const pillarData = app.pillarData || {};
         
-        console.log('📥 Loaded pillar data from API:', {
-          pillarDataKeys: Object.keys(pillarData),
-          samplePillarData: pillarData.pillar_1 || pillarData.pillar_2,
-          hasIndicatorResponses: !!app.indicatorResponses,
-          indicatorResponsesCount: app.indicatorResponses?.length || 0
-        });
+              console.log('📥 Loaded pillar data from API:', {
+                pillarDataKeys: Object.keys(pillarData),
+                samplePillarData: pillarData.pillar_1 || pillarData.pillar_2,
+                hasIndicatorResponses: !!app.indicatorResponses,
+                indicatorResponsesCount: app.indicatorResponses?.length || 0
+              });
+
+              // Debug pillar 6 data specifically
+              if (pillarData.pillar_6) {
+                console.log('🔍 Pillar 6 data loaded:', {
+                  indicators: Object.keys(pillarData.pillar_6.indicators || {}),
+                  indicator_6_1_3: pillarData.pillar_6.indicators?.['6.1.3']
+                });
+              }
         
         // Special debugging for pillar 6 and indicator 6.1.3
         if (pillarData.pillar_6) {

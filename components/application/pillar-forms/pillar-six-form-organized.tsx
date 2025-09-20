@@ -199,6 +199,14 @@ export function PillarSixFormOrganized() {
                         onChange={(value) => handleIndicatorChange(indicator.id, value)}
                         onEvidenceChange={(evidenceData) => handleEvidenceChange(indicator.id, evidenceData)}
                       />
+                      {/* Debug info for indicator 6.1.3 */}
+                      {indicator.id === '6.1.3' && (
+                        <div className="text-xs text-muted-foreground mt-1 p-2 bg-yellow-50 border rounded">
+                          <strong>Debug 6.1.3:</strong>
+                          <br />Value: {pillarData.indicators?.[indicator.id]?.value || 'null'}
+                          <br />Evidence: {JSON.stringify(pillarData.indicators?.[indicator.id]?.evidence || {}, null, 2)}
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 ))}

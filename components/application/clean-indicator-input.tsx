@@ -129,13 +129,24 @@ export function CleanIndicatorInput({
   const [isUploading, setIsUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [activeTab, setActiveTab] = useState("input")
-  
+
   // Refs to prevent infinite loops
   const isUpdatingEvidenceRef = useRef(false)
   const lastEvidenceRef = useRef(evidence)
   const valueChangeTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const evidenceUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const evidenceResetTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Debug evidence props for indicator 6.1.3
+  React.useEffect(() => {
+    if (indicator.id === '6.1.3') {
+      console.log(`🔍 CleanIndicatorInput 6.1.3 - Props received:`, {
+        indicatorId: indicator.id,
+        evidence: evidence,
+        localEvidence: localEvidence
+      });
+    }
+  }, [indicator.id, evidence, localEvidence]);
   
   // Update local state when props change
   useEffect(() => {
