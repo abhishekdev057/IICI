@@ -188,7 +188,7 @@ export function withPerformanceMonitoring<T extends React.ComponentType<any>>(
     })
     
     return React.createElement(Component, props)
-  }) as T
+  }) as unknown as T
 }
 
 // Import React for the component wrapper

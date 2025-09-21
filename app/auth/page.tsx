@@ -102,7 +102,7 @@ function AuthPageContent() {
 
       // Decide target based on role/callback
       let target = callbackUrl;
-      if (session.user.role === "SUPER_ADMIN" || session.user.role === "ADMIN") {
+      if (session.user && (session.user.role === "SUPER_ADMIN" || session.user.role === "ADMIN")) {
         const isAdminRoute = callbackUrl.startsWith("/admin");
         target = isAdminRoute ? callbackUrl : "/admin";
       }

@@ -119,7 +119,9 @@ export class MemoryOptimizer {
   static setCache(key: string, value: any): void {
     if (this.cache.size >= this.maxCacheSize) {
       const firstKey = this.cache.keys().next().value
-      this.cache.delete(firstKey)
+      if (firstKey !== undefined) {
+        this.cache.delete(firstKey)
+      }
     }
     this.cache.set(key, value)
   }
@@ -150,7 +152,7 @@ export class MemoryOptimizer {
   }
   
   // Safe object operations
-  static pick<T, K extends keyof T>(obj: T, keys: K[]): Pick<T, K> {
+  static pick<T extends object, K extends keyof T>(obj: T, keys: K[]): Pick<T, K> {
     const result = {} as Pick<T, K>
     keys.forEach(key => {
       if (key in obj) {

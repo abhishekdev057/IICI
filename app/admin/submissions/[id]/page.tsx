@@ -27,7 +27,7 @@ export default function AdminSubmissionDetailPage() {
       router.push("/auth?callbackUrl=/admin");
       return;
     }
-    if (session.user.role !== "ADMIN" && session.user.role !== "SUPER_ADMIN") {
+    if (!session.user || (session.user.role !== "ADMIN" && session.user.role !== "SUPER_ADMIN")) {
       router.push("/");
       return;
     }

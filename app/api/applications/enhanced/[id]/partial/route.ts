@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
-import { authOptions } from '@/app/api/auth/[...nextauth]/route'
+import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
 export async function PUT(
@@ -103,7 +103,7 @@ async function updateEvidence(applicationId: string, changes: any, userEmail: st
       applicationId,
       indicatorId,
       pillarId,
-      rawValue: null,
+      rawValue: {},
       normalizedScore: 0,
       measurementUnit: getMeasurementUnit(indicatorId)
     }
@@ -171,9 +171,11 @@ async function updateEvidence(applicationId: string, changes: any, userEmail: st
 
 async function updateInstitution(applicationId: string, changes: any, userEmail: string) {
   // Fast upsert with user email lookup
+  const userId = (await prisma.user.findUnique({ where: { email: userEmail }, select: { id: true } }))?.id || ''
+  
   const institutionData = await prisma.institutionData.upsert({
     where: { 
-      user: { email: userEmail }
+      userId: userId
     },
     update: {
       ...changes,
@@ -181,6 +183,11 @@ async function updateInstitution(applicationId: string, changes: any, userEmail:
     },
     create: {
       user: { connect: { email: userEmail } },
+      name: changes.name || "Institution Name",
+      industry: changes.industry || "Education",
+      organizationSize: changes.organizationSize || "Small",
+      country: changes.country || "India",
+      contactEmail: userEmail,
       ...changes
     }
   })

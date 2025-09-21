@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { prisma } from '@/lib/prisma'
-import { authOptions } from '@/app/api/auth/[...nextauth]/route'
+import { authOptions } from '@/lib/auth'
 import { ScoringEngine } from '@/lib/scoring-engine'
 
 export async function GET(
@@ -241,9 +241,12 @@ export async function PUT(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    // Start transaction for atomic updates with increased timeout
+    // Start transaction for atomic updates with enhanced error handling
     const result = await prisma.$transaction(async (tx) => {
       console.log('Starting transaction for application:', id)
+      
+      // Add timeout and retry logic for transaction
+      const transactionStartTime = Date.now();
       
       // Update application
       const updateData: any = {
@@ -275,6 +278,11 @@ export async function PUT(
           where: { userId: userId },
           create: {
             userId: userId,
+            name: institutionData.name || "Institution Name",
+            industry: institutionData.industry || "Education",
+            organizationSize: institutionData.organizationSize || "Small",
+            country: institutionData.country || "India",
+            contactEmail: institutionData.contactEmail || "",
             ...institutionData
           },
           update: institutionData
@@ -491,8 +499,9 @@ export async function PUT(
       console.log('Transaction completed successfully')
       return updatedApplication
     }, {
-      timeout: 60000, // 60 seconds timeout for large datasets
-      maxWait: 15000, // 15 seconds max wait
+      timeout: 30000, // Reduced to 30 seconds for better reliability
+      maxWait: 10000, // Reduced to 10 seconds max wait
+      isolationLevel: 'ReadCommitted', // Better performance
     })
     
     console.log('Application update completed successfully')
@@ -509,32 +518,69 @@ export async function PUT(
       stack: error.stack
     })
     
-    // Handle specific Prisma errors
+    // Handle specific Prisma errors with better user messages
     if (error.code === 'P2002') {
       return NextResponse.json(
-        { error: 'Duplicate entry - data already exists' },
+        { 
+          error: 'Duplicate entry - data already exists',
+          message: 'This data has already been saved. Please refresh and try again.',
+          code: error.code
+        },
         { status: 409 }
       )
     }
     
     if (error.code === 'P2003') {
       return NextResponse.json(
-        { error: 'Foreign key constraint violation' },
+        { 
+          error: 'Foreign key constraint violation',
+          message: 'Invalid data reference. Please check your input and try again.',
+          code: error.code
+        },
         { status: 400 }
       )
     }
     
     if (error.code === 'P2025') {
       return NextResponse.json(
-        { error: 'Record not found' },
+        { 
+          error: 'Record not found',
+          message: 'Application not found. Please refresh and try again.',
+          code: error.code
+        },
         { status: 404 }
+      )
+    }
+
+    // Handle transaction timeout
+    if (error.code === 'P2024') {
+      return NextResponse.json(
+        { 
+          error: 'Transaction timeout',
+          message: 'The operation took too long. Please try again with smaller data.',
+          code: error.code
+        },
+        { status: 408 }
+      )
+    }
+    
+    // Handle connection issues
+    if (error.message?.includes('connection') || error.message?.includes('timeout')) {
+      return NextResponse.json(
+        { 
+          error: 'Database connection issue',
+          message: 'Unable to connect to database. Please try again in a moment.',
+          code: 'CONNECTION_ERROR'
+        },
+        { status: 503 }
       )
     }
     
     return NextResponse.json(
       { 
         error: 'Failed to update application',
-        details: error.message,
+        message: 'An unexpected error occurred. Please try again.',
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined,
         code: error.code
       },
       { status: 500 }

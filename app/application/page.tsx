@@ -2,36 +2,132 @@
 
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { CleanFormWizard } from "@/components/application/clean-form-wizard";
 import { ApplicationProvider } from "@/contexts/application-context";
+import { ApplicationErrorBoundary } from "@/components/application/application-error-boundary";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Shield, ArrowRight, Building2, Award } from "lucide-react";
+import {
+  Shield,
+  ArrowRight,
+  Building2,
+  Award,
+  AlertCircle,
+  RefreshCw,
+  Home,
+} from "lucide-react";
 import { Navigation } from "@/components/layout/navigation";
 import { Footer } from "@/components/layout/footer";
+import { useToast } from "@/components/ui/use-toast";
 
 export default function ApplicationPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
+  const { toast } = useToast();
   const [isRedirecting, setIsRedirecting] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+  const [hasError, setHasError] = useState(false);
 
-  // Add debugging
-  console.log('ApplicationPage render - session:', session, 'status:', status);
+  // Enhanced debugging with error tracking
+  useEffect(() => {
+    console.log(
+      "ApplicationPage render - session:",
+      session,
+      "status:",
+      status,
+      "retryCount:",
+      retryCount
+    );
+  }, [session, status, retryCount]);
+
+  // Enhanced session handling with retry logic
+  const handleAuthRedirect = useCallback(() => {
+    if (retryCount >= 3) {
+      setHasError(true);
+      toast({
+        title: "Authentication Error",
+        description:
+          "Unable to authenticate. Please refresh the page and try again.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsRedirecting(true);
+    setRetryCount((prev) => prev + 1);
+
+    // Add delay for retry attempts
+    const delay = retryCount * 1000;
+    setTimeout(() => {
+      const authUrl = new URL("/auth", window.location.origin);
+      authUrl.searchParams.set("callbackUrl", "/application");
+      router.push(authUrl.toString());
+    }, delay);
+  }, [retryCount, router, toast]);
 
   useEffect(() => {
     if (status === "loading") return;
 
     if (!session) {
-      setIsRedirecting(true);
-      // Redirect to auth page with callback to return here
-      const authUrl = new URL("/auth", window.location.origin);
-      authUrl.searchParams.set("callbackUrl", "/application");
-      router.push(authUrl.toString());
+      handleAuthRedirect();
+    } else {
+      // Reset error state on successful session
+      setHasError(false);
+      setRetryCount(0);
+      setIsRedirecting(false);
     }
-  }, [session, status, router]);
+  }, [session, status, handleAuthRedirect]);
 
-  // Show loading state while checking authentication - OPTIMIZED for speed
+  // Show error state if authentication failed multiple times
+  if (hasError) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Navigation variant="dashboard" title="IIICI Application" />
+        <div className="flex items-center justify-center min-h-[80vh] p-4">
+          <Card className="w-full max-w-md">
+            <CardHeader className="text-center">
+              <div className="w-16 h-16 bg-destructive/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <AlertCircle className="w-8 h-8 text-destructive" />
+              </div>
+              <CardTitle className="text-2xl font-bold text-destructive">
+                Authentication Failed
+              </CardTitle>
+              <p className="text-muted-foreground">
+                Unable to authenticate after multiple attempts. Please try
+                refreshing the page.
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Button
+                onClick={() => {
+                  setHasError(false);
+                  setRetryCount(0);
+                  window.location.reload();
+                }}
+                className="w-full"
+                size="lg"
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Refresh Page
+              </Button>
+              <Button
+                onClick={() => router.push("/")}
+                variant="outline"
+                className="w-full"
+              >
+                <Home className="w-4 h-4 mr-2" />
+                Go Home
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+        <Footer variant="minimal" />
+      </div>
+    );
+  }
+
+  // Show loading state while checking authentication - ENHANCED with retry info
   if (status === "loading" || isRedirecting) {
     return (
       <div className="min-h-screen bg-background">
@@ -42,12 +138,24 @@ export default function ApplicationPage() {
             <p className="text-muted-foreground text-sm">
               {status === "loading"
                 ? "Loading application..."
+                : retryCount > 0
+                ? `Retrying authentication... (${retryCount}/3)`
                 : "Redirecting to login..."}
             </p>
-            {/* OPTIMIZED: Faster progress indicator */}
+            {/* ENHANCED: Progress indicator with retry info */}
             <div className="mt-3 w-48 bg-gray-200 rounded-full h-1.5 mx-auto">
-              <div className="bg-primary h-1.5 rounded-full animate-pulse" style={{width: '80%'}}></div>
+              <div
+                className="bg-primary h-1.5 rounded-full animate-pulse"
+                style={{
+                  width: retryCount > 0 ? `${(retryCount / 3) * 100}%` : "80%",
+                }}
+              ></div>
             </div>
+            {retryCount > 0 && (
+              <p className="text-xs text-muted-foreground mt-2">
+                Attempt {retryCount} of 3
+              </p>
+            )}
           </div>
         </div>
         <Footer variant="minimal" />
@@ -129,38 +237,44 @@ export default function ApplicationPage() {
   }
 
   return (
-    <ApplicationProvider>
-      <div className="min-h-screen bg-background">
-        <Navigation variant="dashboard" title="IIICI Application" />
-        <div className="container mx-auto px-4 py-8">
-          {/* Header */}
-          <div className="mb-8">
-            <div className="flex items-center gap-4 mb-4">
-              <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center">
-                <Building2 className="w-8 h-8 text-primary" />
+    <ApplicationErrorBoundary>
+      <ApplicationProvider>
+        <div className="min-h-screen bg-background">
+          <Navigation variant="dashboard" title="IIICI Application" />
+          <div className="container mx-auto px-4 py-8">
+            {/* Header */}
+            <div className="mb-8">
+              <div className="flex items-center gap-4 mb-4">
+                <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center">
+                  <Building2 className="w-8 h-8 text-primary" />
+                </div>
+                <div>
+                  <h1 className="text-3xl font-bold text-foreground font-[family-name:var(--font-space-grotesk)]">
+                    IIICI Certification Application
+                  </h1>
+                  <p className="text-muted-foreground">
+                    Complete your institutional innovation assessment to earn
+                    your certification
+                  </p>
+                </div>
               </div>
-              <div>
-                <h1 className="text-3xl font-bold text-foreground font-[family-name:var(--font-space-grotesk)]">
-                  IIICI Certification Application
-                </h1>
-                <p className="text-muted-foreground">
-                  Complete your institutional innovation assessment to earn your certification
-                </p>
+              <div className="flex items-center gap-2">
+                <Award className="w-4 h-4 text-primary" />
+                <span className="text-sm text-muted-foreground">
+                  Step-by-step assessment process • Industry-standard evaluation
+                  • Professional certification
+                </span>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Award className="w-4 h-4 text-primary" />
-              <span className="text-sm text-muted-foreground">
-                Step-by-step assessment process • Industry-standard evaluation • Professional certification
-              </span>
-            </div>
-          </div>
 
-          {/* Application Form */}
-          <CleanFormWizard />
+            {/* Application Form with Enhanced Error Handling */}
+            <ApplicationErrorBoundary>
+              <CleanFormWizard />
+            </ApplicationErrorBoundary>
+          </div>
+          <Footer variant="minimal" />
         </div>
-        <Footer variant="minimal" />
-      </div>
-    </ApplicationProvider>
+      </ApplicationProvider>
+    </ApplicationErrorBoundary>
   );
 }

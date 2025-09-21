@@ -6,7 +6,7 @@ import { TrendingUp, Award, Calendar, Download } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { useState } from "react"
-import jsPDF from "jspdf"
+// Dynamic import for client-side only
 import { useToast } from "@/components/ui/use-toast"
 
 interface OverviewChartsProps {
@@ -31,6 +31,8 @@ export function OverviewCharts({
     setIsGenerating(true)
     
     try {
+      // Dynamic import for client-side only
+      const jsPDF = (await import("jspdf")).default;
       const pdf = new jsPDF("p", "mm", "a4")
       const pageWidth = pdf.internal.pageSize.getWidth()
       const pageHeight = pdf.internal.pageSize.getHeight()

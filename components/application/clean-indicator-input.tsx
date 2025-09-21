@@ -800,6 +800,7 @@ const CleanIndicatorInput = memo(function CleanIndicatorInput({
                   onBlur={handleEvidenceBlur}
                   placeholder="Enter text evidence..."
                   rows={3}
+                  style={{ display: 'none' }}
                 />
               </div>
             )}
@@ -834,6 +835,7 @@ const CleanIndicatorInput = memo(function CleanIndicatorInput({
                   onBlur={handleLinkEvidenceBlur}
                   placeholder="Enter link description..."
                   rows={2}
+                  style={{ display: 'none' }}
                 />
               </div>
             )}

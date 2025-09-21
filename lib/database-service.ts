@@ -80,7 +80,6 @@ export class DatabaseService {
               }
             },
           },
-          orderBy: { createdAt: 'desc' }
         }
       }
     })
@@ -99,7 +98,6 @@ export class DatabaseService {
             scoreAudits: true,
             certifications: true,
           },
-          orderBy: { createdAt: 'desc' }
         }
       }
     })
@@ -128,6 +126,11 @@ export class DatabaseService {
       update: data,
       create: {
         userId,
+        name: data.name || "Institution Name",
+        industry: data.industry || "Education",
+        organizationSize: data.organizationSize || "Small",
+        country: data.country || "India",
+        contactEmail: data.contactEmail || "",
         ...data
       } as any
     })
@@ -165,13 +168,11 @@ export class DatabaseService {
           orderBy: { calculatedAt: 'desc' }
         },
         certifications: {
-          orderBy: { issuedAt: 'desc' }
         },
         adminReviews: {
           include: {
             user: true
           },
-          orderBy: { createdAt: 'desc' }
         }
       }
     })
@@ -188,7 +189,6 @@ export class DatabaseService {
           orderBy: { calculatedAt: 'desc' }
         },
         certifications: {
-          orderBy: { issuedAt: 'desc' }
         }
       },
       orderBy: { createdAt: 'desc' }
@@ -292,7 +292,7 @@ export class DatabaseService {
 
     // Convert indicator responses to form data format
     const formData: any = {}
-    application.indicatorResponses.forEach(response => {
+    ;(application as any).indicatorResponses.forEach((response: any) => {
       const pillarKey = `pillar_${response.pillarId}`
       if (!formData[pillarKey]) formData[pillarKey] = {}
       formData[pillarKey][response.indicatorId] = response.rawValue
@@ -375,10 +375,7 @@ export class DatabaseService {
           orderBy: { calculatedAt: 'desc' },
           take: 1
         },
-        certifications: {
-          orderBy: { issuedAt: 'desc' },
-          take: 1
-        },
+        certifications: true,
         adminReviews: {
           include: {
             user: {
@@ -389,7 +386,6 @@ export class DatabaseService {
               }
             }
           },
-          orderBy: { createdAt: 'desc' }
         }
       },
       orderBy: { createdAt: 'desc' }

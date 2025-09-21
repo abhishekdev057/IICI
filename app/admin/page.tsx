@@ -6,9 +6,31 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Shield, Users, Award, FileText, Crown, AlertCircle, CheckCircle, Clock } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Shield,
+  Users,
+  Award,
+  FileText,
+  Crown,
+  AlertCircle,
+  CheckCircle,
+  Clock,
+} from "lucide-react";
 import { toast } from "sonner";
 import { SubmissionsOverview } from "@/components/admin/submissions-overview";
 import { AuditReports } from "@/components/admin/audit-reports";
@@ -17,7 +39,7 @@ interface User {
   id: string;
   email: string;
   name: string;
-  role: 'USER' | 'ADMIN' | 'SUPER_ADMIN';
+  role: "USER" | "ADMIN" | "SUPER_ADMIN";
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -87,11 +109,26 @@ export default function AdminDashboard() {
   const getRoleBadge = (role: string) => {
     switch (role) {
       case "SUPER_ADMIN":
-        return <Badge className="bg-purple-500"><Crown className="w-3 h-3 mr-1" />Super Admin</Badge>;
+        return (
+          <Badge className="bg-purple-500">
+            <Crown className="w-3 h-3 mr-1" />
+            Super Admin
+          </Badge>
+        );
       case "ADMIN":
-        return <Badge className="bg-blue-500"><Shield className="w-3 h-3 mr-1" />Admin</Badge>;
+        return (
+          <Badge className="bg-blue-500">
+            <Shield className="w-3 h-3 mr-1" />
+            Admin
+          </Badge>
+        );
       default:
-        return <Badge variant="secondary"><Users className="w-3 h-3 mr-1" />User</Badge>;
+        return (
+          <Badge variant="secondary">
+            <Users className="w-3 h-3 mr-1" />
+            User
+          </Badge>
+        );
     }
   };
 
@@ -114,17 +151,27 @@ export default function AdminDashboard() {
     );
   }
 
-  if (!session || (session.user.role !== "SUPER_ADMIN" && session.user.role !== "ADMIN")) {
+  if (
+    !session ||
+    !session.user ||
+    (session.user.role !== "SUPER_ADMIN" && session.user.role !== "ADMIN")
+  ) {
     return null;
   }
 
   const stats = {
     totalUsers: users.length,
-    superAdmins: users.filter(u => u.role === 'SUPER_ADMIN').length,
-    admins: users.filter(u => u.role === 'ADMIN').length,
-    regularUsers: users.filter(u => u.role === 'USER').length,
-    totalApplications: users.reduce((sum, user) => sum + user._count.applications, 0),
-    totalCertifications: users.reduce((sum, user) => sum + user._count.certifications, 0),
+    superAdmins: users.filter((u) => u.role === "SUPER_ADMIN").length,
+    admins: users.filter((u) => u.role === "ADMIN").length,
+    regularUsers: users.filter((u) => u.role === "USER").length,
+    totalApplications: users.reduce(
+      (sum, user) => sum + user._count.applications,
+      0
+    ),
+    totalCertifications: users.reduce(
+      (sum, user) => sum + user._count.certifications,
+      0
+    ),
   };
 
   return (
@@ -135,10 +182,11 @@ export default function AdminDashboard() {
           <div>
             <h1 className="text-3xl font-bold">Admin Dashboard</h1>
             <p className="text-muted-foreground">
-              Welcome back, {session.user.name} ({session.user.role === 'SUPER_ADMIN' ? 'Super Admin' : 'Admin'})
+              Welcome back, {session.user?.name || "Admin"} (
+              {session.user?.role === "SUPER_ADMIN" ? "Super Admin" : "Admin"})
             </p>
           </div>
-          {session.user.role === 'SUPER_ADMIN' ? (
+          {session.user?.role === "SUPER_ADMIN" ? (
             <Badge className="bg-purple-500">
               <Crown className="w-4 h-4 mr-1" />
               Super Admin
@@ -165,7 +213,9 @@ export default function AdminDashboard() {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Super Admins</CardTitle>
+              <CardTitle className="text-sm font-medium">
+                Super Admins
+              </CardTitle>
               <Crown className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
@@ -175,33 +225,43 @@ export default function AdminDashboard() {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Applications</CardTitle>
+              <CardTitle className="text-sm font-medium">
+                Total Applications
+              </CardTitle>
               <FileText className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.totalApplications}</div>
+              <div className="text-2xl font-bold">
+                {stats.totalApplications}
+              </div>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Certifications</CardTitle>
+              <CardTitle className="text-sm font-medium">
+                Certifications
+              </CardTitle>
               <Award className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.totalCertifications}</div>
+              <div className="text-2xl font-bold">
+                {stats.totalCertifications}
+              </div>
             </CardContent>
           </Card>
         </div>
 
         {/* Submissions Overview */}
-        <SubmissionsOverview onViewSubmission={(id) => router.push(`/admin/submissions/${id}`)} />
+        <SubmissionsOverview
+          onViewSubmission={(id) => router.push(`/admin/submissions/${id}`)}
+        />
 
         {/* Audit Reports */}
         <AuditReports />
 
         {/* Users Table (Super Admin only) */}
-        {session.user.role === 'SUPER_ADMIN' && (
+        {session.user?.role === "SUPER_ADMIN" && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center">
@@ -228,7 +288,9 @@ export default function AdminDashboard() {
                       <TableCell>
                         <div>
                           <div className="font-medium">{user.name}</div>
-                          <div className="text-sm text-muted-foreground">{user.email}</div>
+                          <div className="text-sm text-muted-foreground">
+                            {user.email}
+                          </div>
                         </div>
                       </TableCell>
                       <TableCell>{getRoleBadge(user.role)}</TableCell>
@@ -241,10 +303,14 @@ export default function AdminDashboard() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline">{user._count.applications}</Badge>
+                        <Badge variant="outline">
+                          {user._count.applications}
+                        </Badge>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline">{user._count.certifications}</Badge>
+                        <Badge variant="outline">
+                          {user._count.certifications}
+                        </Badge>
                       </TableCell>
                       <TableCell>
                         <div className="text-sm text-muted-foreground">
@@ -254,7 +320,9 @@ export default function AdminDashboard() {
                       <TableCell>
                         <Select
                           value={user.role}
-                          onValueChange={(newRole) => updateUserRole(user.id, newRole)}
+                          onValueChange={(newRole) =>
+                            updateUserRole(user.id, newRole)
+                          }
                           disabled={updatingRole === user.id}
                         >
                           <SelectTrigger className="w-32">
@@ -263,7 +331,9 @@ export default function AdminDashboard() {
                           <SelectContent>
                             <SelectItem value="USER">User</SelectItem>
                             <SelectItem value="ADMIN">Admin</SelectItem>
-                            <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
+                            <SelectItem value="SUPER_ADMIN">
+                              Super Admin
+                            </SelectItem>
                           </SelectContent>
                         </Select>
                       </TableCell>

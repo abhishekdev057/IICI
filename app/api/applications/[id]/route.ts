@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { prisma } from '@/lib/prisma'
-import { authOptions } from '@/app/api/auth/[...nextauth]/route'
+import { authOptions } from '@/lib/auth'
 import { DatabaseService } from '@/lib/database-service'
 
 export async function GET(
@@ -119,6 +119,11 @@ export async function PUT(
         where: { userId: userId },
         create: {
           userId: userId,
+          name: institutionData.name || "Institution Name",
+          industry: institutionData.industry || "Education",
+          organizationSize: institutionData.organizationSize || "Small",
+          country: institutionData.country || "India",
+          contactEmail: institutionData.contactEmail || "",
           ...institutionData
         },
         update: institutionData

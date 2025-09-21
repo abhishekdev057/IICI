@@ -9,24 +9,25 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  serverExternalPackages: ['@prisma/client'],
+  serverExternalPackages: ["@prisma/client", "jspdf", "html2canvas"],
   // Performance optimizations
   experimental: {
-    optimizePackageImports: ['lucide-react', '@radix-ui/react-icons'],
+    optimizePackageImports: ["lucide-react", "@radix-ui/react-icons"],
   },
   // Compression and caching
   compress: true,
   poweredByHeader: false,
   // Output optimization
-  output: 'standalone',
+  output: "standalone",
   // Additional performance optimizations
   reactStrictMode: true,
   webpack: (config, { isServer }) => {
+    // Only add externals for server-side builds
     if (isServer) {
-      config.externals.push('@prisma/client')
+      config.externals.push("@prisma/client");
     }
-    
-    // Fix for Next.js 15 self is not defined error
+
+    // Basic fallbacks for Node.js modules
     config.resolve.fallback = {
       ...config.resolve.fallback,
       fs: false,
@@ -35,40 +36,14 @@ const nextConfig = {
       crypto: false,
       stream: false,
       util: false,
-    }
-    
-    // Additional webpack optimizations
-    config.optimization.minimize = true
-    
-    // Fix for self is not defined error
-    config.resolve.alias = {
-      ...config.resolve.alias,
-    }
-    
-    // Additional fixes for Next.js 15
-    config.plugins = config.plugins || []
-    
-    // Bundle optimization
-    config.optimization = {
-      ...config.optimization,
-      splitChunks: {
-        chunks: 'all',
-        cacheGroups: {
-          vendor: {
-            test: /[\\/]node_modules[\\/]/,
-            name: 'vendors',
-            chunks: 'all',
-          },
-        },
-      },
-    }
-    
-    // Additional performance optimizations
-    config.optimization.usedExports = false
-    config.optimization.sideEffects = false
-    
-    return config
-  },
-}
+      path: false,
+      os: false,
+      buffer: false,
+      process: false,
+    };
 
-export default nextConfig
+    return config;
+  },
+};
+
+export default nextConfig;
