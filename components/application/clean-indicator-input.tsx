@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useEffect, useRef, useMemo } from "react"
+import { useState, useCallback, useEffect, useRef, useMemo, memo } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -21,7 +21,9 @@ import {
   Info,
   Save,
   X,
-  HelpCircle
+  HelpCircle,
+  Loader2,
+  Clock
 } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
 import { useApplication } from "@/contexts/application-context"
@@ -103,7 +105,7 @@ interface CleanIndicatorInputProps {
   className?: string
 }
 
-export function CleanIndicatorInput({
+const CleanIndicatorInput = memo(function CleanIndicatorInput({
   indicator,
   pillarId,
   value,
@@ -115,65 +117,43 @@ export function CleanIndicatorInput({
   const { state } = useApplication()
   const { toast } = useToast()
   
-  // Debug logging for data received (reduced to prevent excessive logging)
-  // console.log(`🔍 CleanIndicatorInput(${indicator.id}): Received props:`, {
-  //   indicatorId: indicator.id,
-  //   pillarId,
-  //   value,
-  //   evidence,
-  //   hasApplication: !!state.application
-  // });
+  // Component initialized
   
-  const [localValue, setLocalValue] = useState(() => {
-    try {
-      return value
-    } catch (error) {
-      console.error(`❌ Error initializing localValue for ${indicator?.id}:`, error)
-      return null
-    }
-  })
-  const [localEvidence, setLocalEvidence] = useState(() => {
-    try {
-      return evidence || {}
-    } catch (error) {
-      console.error(`❌ Error initializing localEvidence for ${indicator?.id}:`, error)
-      return {}
-    }
-  })
+  const [localValue, setLocalValue] = useState(value)
+  const [localEvidence, setLocalEvidence] = useState(evidence || {})
   const [isUploading, setIsUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [activeTab, setActiveTab] = useState("input")
-
+  
+  // Focus/blur tracking for smart saving
+  const [isFocused, setIsFocused] = useState(false)
+  const [hasValueChanged, setHasValueChanged] = useState(false)
+  const [hasEvidenceChanged, setHasEvidenceChanged] = useState(false)
+  const [originalValue, setOriginalValue] = useState(value)
+  const [originalEvidence, setOriginalEvidence] = useState(evidence || {})
+  const [isSaving, setIsSaving] = useState(false)
+  
   // Refs to prevent infinite loops
   const isUpdatingEvidenceRef = useRef(false)
   const lastEvidenceRef = useRef(evidence)
   const valueChangeTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const evidenceUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const evidenceResetTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-
-  // Debug evidence props for indicator 6.1.3
-  useEffect(() => {
-    if (indicator.id === '6.1.3') {
-      console.log(`🔍 CleanIndicatorInput 6.1.3 - Props received:`, {
-        indicatorId: indicator.id,
-        evidence: evidence,
-        localEvidence: localEvidence
-      });
-    }
-  }, [indicator.id, evidence, localEvidence]);
   
   // Update local state when props change
   useEffect(() => {
     setLocalValue(value)
+    setOriginalValue(value)
   }, [value])
   
   useEffect(() => {
     // Only update if we're not currently updating evidence to prevent loops
     if (!isUpdatingEvidenceRef.current) {
       setLocalEvidence(evidence || {})
+      setOriginalEvidence(evidence || {})
       lastEvidenceRef.current = evidence
     }
-  }, [evidence])
+  }, [evidence, indicator.id])
   
   // Cleanup timeouts on unmount
   useEffect(() => {
@@ -190,94 +170,165 @@ export function CleanIndicatorInput({
     }
   }, [])
   
-  // Handle value change with debouncing
+  // Handle value change - only update local state, don't save yet
   const handleValueChange = useCallback((newValue: any) => {
     setLocalValue(newValue)
     
-    // Clear existing timeout
-    if (valueChangeTimeoutRef.current) {
-      clearTimeout(valueChangeTimeoutRef.current)
-    }
-    
-    // Debounce the onChange call - OPTIMIZED for real-time updates
-    valueChangeTimeoutRef.current = setTimeout(() => {
-      console.log(`🔄 CleanIndicatorInput calling onChange for ${indicator.id}:`, newValue)
+    // Save immediately for better performance
+    if (originalValue !== newValue) {
+      console.log(`⚡ Immediate save for ${indicator.id}:`, newValue)
+      setIsSaving(true)
       onChange(newValue)
-    }, 100) // Reduced to 100ms for faster auto-save
-  }, [onChange, indicator.id])
+      setIsSaving(false)
+      
+      // Update original value and reset change flag after successful save
+      setOriginalValue(newValue)
+      setHasValueChanged(false)
+    }
+  }, [originalValue, onChange, indicator.id])
   
-  // Handle evidence change - IMMEDIATE saving for better UX
+  // Handle focus - track that user is editing
+  const handleFocus = useCallback(() => {
+    setIsFocused(true)
+  }, [])
+  
+  // Handle blur - only for evidence, values are saved immediately
+  const handleBlur = useCallback(async () => {
+    setIsFocused(false)
+    
+    // Only handle evidence changes on blur, values are saved immediately
+    if (hasEvidenceChanged) {
+      console.log(`🔄 CleanIndicatorInput saving evidence change for ${indicator.id}:`, localEvidence)
+      setIsSaving(true)
+      try {
+        onEvidenceChange(localEvidence)
+        setOriginalEvidence(JSON.parse(JSON.stringify(localEvidence)))
+        setHasEvidenceChanged(false)
+      } finally {
+        setIsSaving(false)
+      }
+    }
+  }, [hasEvidenceChanged, localEvidence, onEvidenceChange, indicator.id])
+  
+  // Handle evidence change - only update local state, don't save yet
   const handleEvidenceChange = useCallback((type: 'text' | 'link' | 'file', field: string, evidenceValue: any) => {
     console.log(`🔄 handleEvidenceChange called:`, { type, field, evidenceValue, indicatorId: indicator.id })
-
+    
     setLocalEvidence((prev: any) => {
       const updatedEvidence = { ...prev }
-
+      
       if (!updatedEvidence[type]) {
         updatedEvidence[type] = {} as any
       }
-
+      
       (updatedEvidence[type] as any)[field] = evidenceValue
-
-      // Trigger immediate save for evidence changes (no debouncing for better UX)
-      const evidenceData = {
-        [type]: {
-          ...updatedEvidence[type],
-          _persisted: false // Mark as not persisted yet
-        }
-      }
-
-      console.log(`💾 Immediate evidence save for ${indicator.id}:`, evidenceData)
-      onEvidenceChange(evidenceData)
-
+      
+      console.log(`🔄 Updated evidence for ${indicator.id}:`, updatedEvidence)
+      
       return updatedEvidence
     })
-  }, [indicator.id, onEvidenceChange])
+    
+    // Mark that evidence has changed
+    setHasEvidenceChanged(true)
+  }, [indicator.id])
   
-  // Debounced evidence update to parent - ENHANCED with debugging
-  const debouncedEvidenceUpdate = useCallback((evidenceData: any) => {
-    console.log(`🔄 debouncedEvidenceUpdate called for ${indicator.id}:`, evidenceData)
+  // Handle link evidence change - update local state only
+  const handleLinkEvidenceChange = useCallback((field: 'url' | 'description', value: any) => {
+    console.log(`🔄 handleLinkEvidenceChange called:`, { field, value, indicatorId: indicator.id })
     
-    // Clear existing timeouts
-    if (evidenceUpdateTimeoutRef.current) {
-      clearTimeout(evidenceUpdateTimeoutRef.current)
-    }
-    if (evidenceResetTimeoutRef.current) {
-      clearTimeout(evidenceResetTimeoutRef.current)
-    }
-    
-    evidenceUpdateTimeoutRef.current = setTimeout(() => {
-      if (!isUpdatingEvidenceRef.current) {
-        isUpdatingEvidenceRef.current = true
-        console.log(`🔄 Calling onEvidenceChange for ${indicator.id}:`, evidenceData)
-        onEvidenceChange(evidenceData)
-        evidenceResetTimeoutRef.current = setTimeout(() => {
-          isUpdatingEvidenceRef.current = false
-        }, 100)
+    setLocalEvidence((prev: any) => {
+      const updatedEvidence = { ...prev }
+      
+      if (!updatedEvidence.link) {
+        updatedEvidence.link = {} as any
       }
-    }, 100) // Reduced to 100ms for faster auto-save
-  }, [onEvidenceChange, indicator.id])
+      
+      updatedEvidence.link[field] = value
+      
+      console.log(`🔄 Updated link evidence for ${indicator.id}:`, updatedEvidence)
+      
+      return updatedEvidence
+    })
+    
+    // Mark that evidence has changed
+    setHasEvidenceChanged(true)
+  }, [indicator.id])
   
-  // Use effect to call parent callback when evidence changes
-  useEffect(() => {
-    // Only call onEvidenceChange if the evidence has actually changed from the last known value
-    const hasChanged = JSON.stringify(localEvidence) !== JSON.stringify(lastEvidenceRef.current)
-    if (hasChanged) {
-      lastEvidenceRef.current = localEvidence
-      debouncedEvidenceUpdate(localEvidence)
+  // Handle link evidence blur - save if URL or description changed
+  const handleLinkEvidenceBlur = useCallback(async () => {
+    setIsFocused(false)
+    
+    // Only save if evidence actually changed
+    if (hasEvidenceChanged && JSON.stringify(localEvidence) !== JSON.stringify(originalEvidence)) {
+      console.log(`🔄 CleanIndicatorInput saving link evidence change for ${indicator.id}:`, localEvidence)
+      setIsSaving(true)
+      try {
+        onEvidenceChange(localEvidence)
+        setOriginalEvidence(localEvidence)
+        setHasEvidenceChanged(false)
+      } finally {
+        setIsSaving(false)
+      }
     }
-  }, [localEvidence, debouncedEvidenceUpdate])
+  }, [hasEvidenceChanged, localEvidence, originalEvidence, onEvidenceChange, indicator.id])
+  
+  // Handle evidence focus - track that user is editing evidence
+  const handleEvidenceFocus = useCallback(() => {
+    setIsFocused(true)
+  }, [])
+  
+  // Handle evidence blur - save if evidence changed
+  const handleEvidenceBlur = useCallback(async () => {
+    setIsFocused(false)
+    
+    // Only save if evidence actually changed
+    if (hasEvidenceChanged && JSON.stringify(localEvidence) !== JSON.stringify(originalEvidence)) {
+      console.log(`🔄 CleanIndicatorInput saving evidence change for ${indicator.id}:`, localEvidence)
+      setIsSaving(true)
+      try {
+        onEvidenceChange(localEvidence)
+        setOriginalEvidence(localEvidence)
+        setHasEvidenceChanged(false)
+      } finally {
+        setIsSaving(false)
+      }
+    }
+  }, [hasEvidenceChanged, localEvidence, originalEvidence, onEvidenceChange, indicator.id])
+  
+  // Remove old debounced evidence update - now using focus/blur pattern
   
   // Handle file upload
   const handleFileUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
     
-    // Validate file size (10MB limit)
-    if (file.size > 10 * 1024 * 1024) {
+    // Validate file size (5MB limit for base64 storage)
+    if (file.size > 5 * 1024 * 1024) {
       toast({
         title: "File Too Large",
-        description: "Please select a file smaller than 10MB",
+        description: "Please select a file smaller than 5MB",
+        variant: "destructive",
+      })
+      return
+    }
+    
+    // Validate file type
+    const allowedTypes = [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'image/jpeg',
+      'image/jpg', 
+      'image/png',
+      'text/plain',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    ]
+    
+    if (!allowedTypes.includes(file.type)) {
+      toast({
+        title: "Unsupported File Type",
+        description: "Please select a PDF, Word, Excel, image, or text file",
         variant: "destructive",
       })
       return
@@ -287,40 +338,71 @@ export function CleanIndicatorInput({
     setUploadProgress(0)
     
     try {
-      // Simulate file upload progress
-      const progressInterval = setInterval(() => {
-        setUploadProgress(prev => {
-          if (prev >= 90) {
-            clearInterval(progressInterval)
-            return 90
-          }
-          return prev + 10
-        })
-      }, 100)
+      // Convert file to base64 for storage
+      const reader = new FileReader()
       
-      // In a real implementation, you would upload to a file storage service
-      // For now, we'll simulate a successful upload
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
-      clearInterval(progressInterval)
-      setUploadProgress(100)
-      
-      // Update evidence with file information
-      setLocalEvidence((prev: any) => ({
-        ...prev,
-        file: {
-          ...prev.file,
-          fileName: file.name,
-          fileSize: file.size,
-          fileType: file.type,
-          url: URL.createObjectURL(file)
+      reader.onprogress = (e) => {
+        if (e.lengthComputable) {
+          const progress = Math.round((e.loaded / e.total) * 100)
+          setUploadProgress(progress)
         }
-      }))
+      }
       
-      toast({
-        title: "File Uploaded",
-        description: `${file.name} has been uploaded successfully.`,
-      })
+      reader.onload = async (e) => {
+        try {
+          const base64String = e.target?.result as string
+          
+          // Update evidence with file information including base64 data
+          const updatedEvidence = {
+            ...localEvidence,
+            file: {
+              ...localEvidence.file,
+              fileName: file.name,
+              fileSize: file.size,
+              fileType: file.type,
+              url: base64String, // Store base64 data as URL
+              description: localEvidence.file?.description || ''
+            }
+          }
+          
+          setLocalEvidence(updatedEvidence)
+          setOriginalEvidence(updatedEvidence)
+          setHasEvidenceChanged(false)
+          
+                    // Auto-save file evidence immediately
+          onEvidenceChange(updatedEvidence)
+          
+          toast({
+            title: "File Uploaded",
+            description: `${file.name} has been uploaded successfully.`,
+          })
+        } catch (error) {
+          console.error('File processing error:', error)
+          toast({
+            title: "Upload Failed",
+            description: "Failed to process file. Please try again.",
+            variant: "destructive",
+          })
+        } finally {
+          setIsUploading(false)
+          setUploadProgress(0)
+        }
+      }
+      
+      reader.onerror = () => {
+        console.error('File reading error')
+        toast({
+          title: "Upload Failed",
+          description: "Failed to read file. Please try again.",
+          variant: "destructive",
+        })
+        setIsUploading(false)
+        setUploadProgress(0)
+      }
+      
+      // Start reading the file
+      reader.readAsDataURL(file)
+      
     } catch (error) {
       console.error('Upload error:', error)
       toast({
@@ -328,11 +410,10 @@ export function CleanIndicatorInput({
         description: "Failed to upload file. Please try again.",
         variant: "destructive",
       })
-    } finally {
       setIsUploading(false)
       setUploadProgress(0)
     }
-  }, [toast])
+  }, [toast, localEvidence, indicator.id, onEvidenceChange])
   
   // Remove evidence type
   const removeEvidenceType = useCallback((type: 'text' | 'link' | 'file') => {
@@ -341,6 +422,7 @@ export function CleanIndicatorInput({
       delete updatedEvidence[type]
       return updatedEvidence
     })
+    setHasEvidenceChanged(true)
   }, [])
   
   // Calculate progress
@@ -359,7 +441,7 @@ export function CleanIndicatorInput({
     
     const count = [hasText, hasLink, hasFile].filter(Boolean).length
     return { count, total: 3, hasText, hasLink, hasFile }
-  }, [localEvidence])
+  }, [localEvidence, indicator.id])
   const isComplete = hasValue && (!evidenceRequired || hasEvidence)
   
   // Get progress percentage
@@ -375,7 +457,11 @@ export function CleanIndicatorInput({
   
   // Get status badge
   const getStatusBadge = () => {
-    if (isComplete) {
+    if (isSaving) {
+      return <Badge variant="secondary" className="bg-blue-500"><Loader2 className="h-3 w-3 mr-1 animate-spin" />Saving...</Badge>
+    } else if (hasValueChanged || hasEvidenceChanged) {
+      return <Badge variant="outline" className="bg-orange-100 text-orange-700"><Clock className="h-3 w-3 mr-1" />Unsaved Changes</Badge>
+    } else if (isComplete) {
       return <Badge variant="default" className="bg-green-500"><CheckCircle className="h-3 w-3 mr-1" />Complete</Badge>
     } else if (hasValue) {
       if (evidenceRequired && !hasEvidence) {
@@ -400,8 +486,12 @@ export function CleanIndicatorInput({
           <Select 
             value={localValue?.toString() || ""} 
             onValueChange={(value) => {
-              console.log(`🎯 Select onValueChange for ${indicator.id}:`, value)
-              handleValueChange(parseFloat(value) || null)
+              const newValue = parseFloat(value) || null
+              console.log(`🎯 Select onValueChange for ${indicator.id}:`, newValue)
+              setLocalValue(newValue)
+              setOriginalValue(newValue)
+              setHasValueChanged(false)
+              onChange(newValue)
             }}
           >
             <SelectTrigger>
@@ -432,6 +522,8 @@ export function CleanIndicatorInput({
               console.log(`📊 Percentage onChange for ${indicator.id}:`, e.target.value)
               handleValueChange(parseFloat(e.target.value) || null)
             }}
+            onFocus={handleFocus}
+            onBlur={handleBlur}
             placeholder="Enter percentage (0-100)"
           />
         </div>
@@ -443,14 +535,26 @@ export function CleanIndicatorInput({
           <div className="flex gap-4">
             <Button
               variant={localValue === 1 ? "default" : "outline"}
-              onClick={() => handleValueChange(1)}
+              onClick={async () => {
+                setLocalValue(1)
+                setOriginalValue(1)
+                setHasValueChanged(false)
+                console.log(`🔄 CleanIndicatorInput saving binary value for ${indicator.id}:`, 1)
+                onChange(1)
+              }}
               className="flex-1"
             >
               Yes
             </Button>
             <Button
               variant={localValue === 0 ? "default" : "outline"}
-              onClick={() => handleValueChange(0)}
+              onClick={async () => {
+                setLocalValue(0)
+                setOriginalValue(0)
+                setHasValueChanged(false)
+                console.log(`🔄 CleanIndicatorInput saving binary value for ${indicator.id}:`, 0)
+                onChange(0)
+              }}
               className="flex-1"
             >
               No
@@ -467,6 +571,8 @@ export function CleanIndicatorInput({
             type="text"
             value={localValue || ''}
             onChange={(e) => handleValueChange(e.target.value)}
+            onFocus={handleFocus}
+            onBlur={handleBlur}
             placeholder="Enter ratio (e.g., 3:1)"
           />
         </div>
@@ -482,6 +588,8 @@ export function CleanIndicatorInput({
             step="0.5"
             value={localValue || ''}
             onChange={(e) => handleValueChange(parseFloat(e.target.value) || null)}
+            onFocus={handleFocus}
+            onBlur={handleBlur}
             placeholder="Enter hours per employee"
           />
         </div>
@@ -496,6 +604,8 @@ export function CleanIndicatorInput({
             min="0"
             value={localValue || ''}
             onChange={(e) => handleValueChange(parseInt(e.target.value) || null)}
+            onFocus={handleFocus}
+            onBlur={handleBlur}
             placeholder="Enter number"
           />
         </div>
@@ -509,6 +619,8 @@ export function CleanIndicatorInput({
             type="text"
             value={localValue || ''}
             onChange={(e) => handleValueChange(e.target.value)}
+            onFocus={handleFocus}
+            onBlur={handleBlur}
             placeholder="Enter value"
           />
         </div>
@@ -662,6 +774,7 @@ export function CleanIndicatorInput({
                   </div>
                 </div>
               )}
+              
             </div>
             
             {/* Text Evidence */}
@@ -683,24 +796,8 @@ export function CleanIndicatorInput({
                 <Textarea
                   value={localEvidence.text.description || ''}
                   onChange={(e) => handleEvidenceChange('text', 'description', e.target.value)}
-                  onFocus={() => console.log(`🎯 Text input focused for ${indicator.id}`)}
-                  onBlur={() => {
-                    console.log(`👋 Text input blurred for ${indicator.id}, final save`)
-                    // Trigger final save on blur with proper error handling
-                    try {
-                      if (localEvidence.text) {
-                        const evidenceData = {
-                          text: {
-                            ...localEvidence.text,
-                            _persisted: false
-                          }
-                        }
-                        onEvidenceChange(evidenceData)
-                      }
-                    } catch (error) {
-                      console.error(`❌ Error saving text evidence on blur for ${indicator.id}:`, error)
-                    }
-                  }}
+                  onFocus={handleEvidenceFocus}
+                  onBlur={handleEvidenceBlur}
                   placeholder="Enter text evidence..."
                   rows={3}
                 />
@@ -725,46 +822,16 @@ export function CleanIndicatorInput({
                 </div>
                 <Input
                   value={localEvidence.link.url || ''}
-                  onChange={(e) => handleEvidenceChange('link', 'url', e.target.value)}
-                  onFocus={() => console.log(`🎯 Link URL input focused for ${indicator.id}`)}
-                  onBlur={() => {
-                    console.log(`👋 Link URL input blurred for ${indicator.id}, final save`)
-                    try {
-                      if (localEvidence.link) {
-                        const evidenceData = {
-                          link: {
-                            ...localEvidence.link,
-                            _persisted: false
-                          }
-                        }
-                        onEvidenceChange(evidenceData)
-                      }
-                    } catch (error) {
-                      console.error(`❌ Error saving link evidence on blur for ${indicator.id}:`, error)
-                    }
-                  }}
+                  onChange={(e) => handleLinkEvidenceChange('url', e.target.value)}
+                  onFocus={handleEvidenceFocus}
+                  onBlur={handleLinkEvidenceBlur}
                   placeholder="Enter URL..."
                 />
                 <Textarea
                   value={localEvidence.link.description || ''}
-                  onChange={(e) => handleEvidenceChange('link', 'description', e.target.value)}
-                  onFocus={() => console.log(`🎯 Link description input focused for ${indicator.id}`)}
-                  onBlur={() => {
-                    console.log(`👋 Link description input blurred for ${indicator.id}, final save`)
-                    try {
-                      if (localEvidence.link) {
-                        const evidenceData = {
-                          link: {
-                            ...localEvidence.link,
-                            _persisted: false
-                          }
-                        }
-                        onEvidenceChange(evidenceData)
-                      }
-                    } catch (error) {
-                      console.error(`❌ Error saving link description evidence on blur for ${indicator.id}:`, error)
-                    }
-                  }}
+                  onChange={(e) => handleLinkEvidenceChange('description', e.target.value)}
+                  onFocus={handleEvidenceFocus}
+                  onBlur={handleLinkEvidenceBlur}
                   placeholder="Enter link description..."
                   rows={2}
                 />
@@ -772,12 +839,17 @@ export function CleanIndicatorInput({
             )}
             
             {/* File Evidence */}
-            {localEvidence.file && (
+            {(localEvidence.file || evidenceCount.hasFile) && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label className="flex items-center gap-2">
                     <Upload className="h-4 w-4" />
                     File Evidence
+                    {(localEvidence.file?.fileName || evidenceCount.hasFile) && (
+                      <Badge variant="secondary" className="text-xs">
+                        {localEvidence.file?.fileName || 'File Uploaded'}
+                      </Badge>
+                    )}
                   </Label>
                   <Button
                     variant="ghost"
@@ -789,50 +861,31 @@ export function CleanIndicatorInput({
                 </div>
                 <div className="space-y-2">
                   <Input
-                    value={localEvidence.file.fileName || ''}
+                    value={localEvidence.file?.fileName || ''}
                     onChange={(e) => handleEvidenceChange('file', 'fileName', e.target.value)}
-                    onFocus={() => console.log(`🎯 File name input focused for ${indicator.id}`)}
-                    onBlur={() => {
-                      console.log(`👋 File name input blurred for ${indicator.id}, final save`)
-                      try {
-                        if (localEvidence.file) {
-                          const evidenceData = {
-                            file: {
-                              ...localEvidence.file,
-                              _persisted: false
-                            }
-                          }
-                          onEvidenceChange(evidenceData)
-                        }
-                      } catch (error) {
-                        console.error(`❌ Error saving file name evidence on blur for ${indicator.id}:`, error)
-                      }
-                    }}
+                    onFocus={handleEvidenceFocus}
+                    onBlur={handleEvidenceBlur}
                     placeholder="File name..."
                   />
                   <Textarea
-                    value={localEvidence.file.description || ''}
+                    value={localEvidence.file?.description || ''}
                     onChange={(e) => handleEvidenceChange('file', 'description', e.target.value)}
-                    onFocus={() => console.log(`🎯 File description input focused for ${indicator.id}`)}
-                    onBlur={() => {
-                      console.log(`👋 File description input blurred for ${indicator.id}, final save`)
-                      try {
-                        if (localEvidence.file) {
-                          const evidenceData = {
-                            file: {
-                              ...localEvidence.file,
-                              _persisted: false
-                            }
-                          }
-                          onEvidenceChange(evidenceData)
-                        }
-                      } catch (error) {
-                        console.error(`❌ Error saving file description evidence on blur for ${indicator.id}:`, error)
-                      }
-                    }}
+                    onFocus={handleEvidenceFocus}
+                    onBlur={handleEvidenceBlur}
                     placeholder="File description..."
                     rows={2}
                   />
+                  {localEvidence.file?.url && (
+                    <div className="text-xs text-muted-foreground">
+                      <a 
+                        href={localEvidence.file.url} 
+                        download={localEvidence.file.fileName}
+                        className="text-blue-600 hover:text-blue-800 underline"
+                      >
+                        📎 Download {localEvidence.file.fileName}
+                      </a>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -843,7 +896,10 @@ export function CleanIndicatorInput({
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setLocalEvidence((prev: any) => ({ ...prev, text: { description: '' } }))}
+                  onClick={() => {
+                    setLocalEvidence((prev: any) => ({ ...prev, text: { description: '' } }))
+                    setHasEvidenceChanged(true)
+                  }}
                 >
                   <FileText className="h-4 w-4 mr-2" />
                   Add Text
@@ -853,25 +909,31 @@ export function CleanIndicatorInput({
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setLocalEvidence((prev: any) => ({ ...prev, link: { url: '', description: '' } }))}
+                  onClick={() => {
+                    setLocalEvidence((prev: any) => ({ ...prev, link: { url: '', description: '' } }))
+                    setHasEvidenceChanged(true)
+                  }}
                 >
                   <Link className="h-4 w-4 mr-2" />
                   Add Link
                 </Button>
               )}
-              {!localEvidence.file && (
+              {!localEvidence.file && !evidenceCount.hasFile && (
                 <div>
                   <input
                     type="file"
                     id={`file-upload-${indicator.id}`}
                     onChange={handleFileUpload}
                     className="hidden"
-                    accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png"
+                    accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.xls,.xlsx"
                   />
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => document.getElementById(`file-upload-${indicator.id}`)?.click()}
+                    onClick={() => {
+                      // Just trigger the file input, don't initialize file evidence yet
+                      document.getElementById(`file-upload-${indicator.id}`)?.click()
+                    }}
                     disabled={isUploading}
                   >
                     <Upload className="h-4 w-4 mr-2" />
@@ -885,4 +947,6 @@ export function CleanIndicatorInput({
       </CardContent>
     </Card>
   )
-}
+})
+
+export { CleanIndicatorInput }

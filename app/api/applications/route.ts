@@ -4,6 +4,8 @@ import { prisma } from '@/lib/prisma'
 import { authOptions } from '@/app/api/auth/[...nextauth]/route'
 
 export async function GET(request: NextRequest) {
+  const startTime = Date.now()
+  
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user) {
@@ -46,10 +48,17 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       data: applications
     })
+    
+    // Add performance headers
+    const duration = Date.now() - startTime
+    response.headers.set('X-Response-Time', `${duration}ms`)
+    response.headers.set('Cache-Control', 'private, max-age=30, stale-while-revalidate=60')
+    
+    return response
   } catch (error) {
     console.error('❌ Error fetching applications:', error)
     return NextResponse.json(

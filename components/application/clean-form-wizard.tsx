@@ -1,13 +1,13 @@
 "use client"
 
-import { useState, useMemo, useCallback, useEffect } from "react"
+import { useState, useMemo, useCallback, useEffect, memo } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import {
+import { 
   CheckCircle, 
   Clock, 
   AlertCircle, 
@@ -31,7 +31,7 @@ import { useApplication } from "@/contexts/application-context"
 import { PILLAR_STRUCTURE } from "@/lib/pillar-structure"
 
 // Import centralized utilities
-import {
+import { 
   getIndicatorMeasurementUnit, 
   getIndicatorMaxScore, 
   isEvidenceRequired,
@@ -102,7 +102,7 @@ const formSteps = [
   },
 ]
 
-export function CleanFormWizard() {
+const CleanFormWizard = memo(function CleanFormWizard() {
   const { 
     state, 
     saveApplication, 
@@ -116,8 +116,7 @@ export function CleanFormWizard() {
     updateIndicator,
     updateEvidence,
     saveAllPendingChanges,
-    validateFromDatabase,
-    validateCompleteApplication
+    validateFromDatabase
   } = useApplication()
   
   const { toast } = useToast()
@@ -160,21 +159,13 @@ export function CleanFormWizard() {
     // Check each pillar - use same logic as validation
     for (let pillarId = 1; pillarId <= 6; pillarId++) {
       const progress = getPillarProgress(pillarId)
-      console.log(`🔍 Step Progress - Pillar ${pillarId}:`, {
-        completion: progress.completion,
-        score: progress.score,
-        isComplete: progress.completion >= 100
-      })
+      // Calculate pillar progress
       // Use 100% completion to match validation logic
       if (progress.completion >= 100) completedSteps++
     }
     
     const finalProgress = (completedSteps / totalSteps) * 100
-    console.log(`🔍 Step Progress Calculation:`, {
-      completedSteps,
-      totalSteps,
-      finalProgress
-    })
+    // Calculate overall progress
     
     return finalProgress
   }, [application, getPillarProgress, application?.lastModified]) // Added lastModified for real-time updates
@@ -232,7 +223,7 @@ export function CleanFormWizard() {
 
   // Get detailed validation info for current step - OPTIMIZED for real-time updates
   const getStepValidationInfo = useCallback(() => {
-    console.log('🔍 Validation called with application:', application)
+    // Validate current step
     if (!application) return { isComplete: false, missingItems: [], filledCount: 0, totalCount: 0 }
     
     if (currentStep === 0) {
@@ -259,7 +250,7 @@ export function CleanFormWizard() {
       // Check pillar data - currentStep 1-6 corresponds to pillars 1-6
       const pillarId = currentStep
       const pillarData = application.pillarData?.[`pillar_${pillarId}`]
-      console.log(`🔍 Checking pillar ${pillarId} data:`, pillarData)
+      // Check pillar data
       
       const pillarStructure = PILLAR_STRUCTURE.find(p => p.id === pillarId)
       
@@ -300,7 +291,6 @@ export function CleanFormWizard() {
           const evidence = indicatorData?.evidence
           
           // Check if indicator value is filled
-          console.log(`🔍 Validating indicator ${indicatorId}:`, { value, indicatorData, pillarData })
           if (value === null || value === undefined || value === "") {
             missingItems.push(`Indicator ${indicatorId} - Value required`)
             continue
@@ -309,49 +299,16 @@ export function CleanFormWizard() {
           // Check if evidence is required and provided
           const evidenceRequired = isEvidenceRequired(indicatorId, value)
           
-          // Enhanced debugging for all indicators requiring evidence
-          if (evidenceRequired) {
-            console.log(`🚨 EVIDENCE REQUIRED FOR ${indicatorId}:`, {
-              value,
-              valueType: typeof value,
-              numericValue: Number(value),
-              measurementUnit: getIndicatorMeasurementUnit(indicatorId),
-              maxScore: getIndicatorMaxScore(indicatorId),
-              threshold: getIndicatorMaxScore(indicatorId) * 0.5,
-              thresholdType: getIndicatorMeasurementUnit(indicatorId).includes('Percentage') ? '50%' : 
-                            getIndicatorMeasurementUnit(indicatorId).includes('Score') ? `${getIndicatorMaxScore(indicatorId) * 0.5}` :
-                            getIndicatorMeasurementUnit(indicatorId).includes('Binary') ? '1' : 'N/A',
-              hasEvidence: validateEvidence(evidence),
-              evidence
-            });
-          }
-          
-          console.log(`🔍 Evidence check for ${indicatorId}:`, {
-            value,
-            evidenceRequired,
-            hasEvidence: validateEvidence(evidence),
-            evidence
-          });
+          // Check if evidence is required and provided
           
           if (evidenceRequired) {
             // Use centralized evidence validation
             const hasEvidence = validateEvidence(evidence)
             
-            console.log(`🔍 Evidence validation for ${indicatorId}:`, {
-              hasEvidence,
-              evidenceRequired,
-              evidence
-            });
-            
             if (!hasEvidence) {
-              console.log(`❌ Evidence required but missing for ${indicatorId}`);
               missingItems.push(`Indicator ${indicatorId} - Evidence required`)
               continue
-            } else {
-              console.log(`✅ Evidence found for ${indicatorId}`);
             }
-          } else {
-            console.log(`✅ No evidence required for ${indicatorId} (value: ${value})`);
           }
           
           filledCount++
@@ -384,14 +341,14 @@ export function CleanFormWizard() {
   useEffect(() => {
     if (application) {
       const newValidationInfo = getStepValidationInfo()
-      console.log('🔄 Real-time validation update:', newValidationInfo)
+      // Update validation info
       
       // Update validation info state if it has changed
       setValidationInfo(newValidationInfo)
       
       // Auto-close validation dialog if step becomes complete
       if (newValidationInfo.isComplete && showValidationDialog) {
-        console.log('✅ Step completed, auto-closing validation dialog')
+        // Step completed
         setShowValidationDialog(false)
       }
     }
@@ -399,57 +356,91 @@ export function CleanFormWizard() {
 
   const goToNextStep = useCallback(async () => {
     if (currentStep < formSteps.length - 1) {
-      console.log('🔄 Next button clicked - starting validation and save process')
+      // Show loading state
+      setState(prev => ({ ...prev, isNavigating: true }))
       
-      // Step 1: Save all pending changes first
-      console.log('💾 Saving all pending changes before validation...')
-      const saveSuccess = await saveAllPendingChanges()
-      
-      if (!saveSuccess) {
-        toast({
-          title: "Save Failed",
-          description: "Please fix the save errors before proceeding.",
-          variant: "destructive",
-        })
-        return
-      }
-      
-      // Step 2: Validate from database directly
-      console.log('🔍 Validating current step from database...')
-      const dbValidation = await validateFromDatabase(currentStep)
-      console.log('🔍 Database validation result:', dbValidation)
-      
-      if (!dbValidation.isValid) {
-        // Update validation info with database results
-        const validationInfo = {
-          isComplete: false,
-          missingItems: dbValidation.missingItems,
-          filledCount: 0, // Will be calculated
-          totalCount: 0   // Will be calculated
+      try {
+        // Step 1: Force save ALL pending changes with retry logic
+        let saveSuccess = false
+        let retryCount = 0
+        const maxRetries = 3
+        
+        while (!saveSuccess && retryCount < maxRetries) {
+          console.log(`🔄 Attempting to save all data (attempt ${retryCount + 1}/${maxRetries})`)
+          
+          // Force save all pending changes
+          saveSuccess = await saveAllPendingChanges()
+          
+          if (!saveSuccess) {
+            retryCount++
+            if (retryCount < maxRetries) {
+              // Wait before retry
+              await new Promise(resolve => setTimeout(resolve, 1000 * retryCount))
+            }
+          }
         }
         
-        setValidationInfo(validationInfo)
-        setShowValidationDialog(true)
+        if (!saveSuccess) {
+          toast({
+            title: "Save Failed",
+            description: "Unable to save your data. Please check your connection and try again.",
+            variant: "destructive",
+          })
+          setState(prev => ({ ...prev, isNavigating: false }))
+          return
+        }
+        
+        // Step 2: Wait for any remaining saves to complete
+        console.log('⏳ Waiting for all saves to complete...')
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        
+        // Step 3: Validate from database to ensure data is actually saved
+        console.log('🔍 Validating data from database...')
+        const dbValidation = await validateFromDatabase(currentStep)
+        
+        if (!dbValidation.isValid) {
+          // Update validation info with database results
+          const validationInfo = {
+            isComplete: false,
+            missingItems: dbValidation.missingItems,
+            filledCount: 0, // Will be calculated
+            totalCount: 0   // Will be calculated
+          }
+        
+          setValidationInfo(validationInfo)
+          setShowValidationDialog(true)
+          
+          toast({
+            title: "Step Incomplete",
+            description: "Please complete all required fields before proceeding.",
+            variant: "destructive",
+          })
+          setState(prev => ({ ...prev, isNavigating: false }))
+          return
+        }
+        
+        // Step 4: Navigate to next step only after everything is saved
+        console.log('✅ All data saved and validated - navigating to next step')
+        const nextIncompleteStep = getNextIncompleteStep()
+        console.log('🎯 Navigating to next incomplete step:', nextIncompleteStep)
+        setHasManuallyNavigated(true)
+        setCurrentStep(nextIncompleteStep)
         
         toast({
-          title: "Step Incomplete",
-          description: "Please complete all required fields before proceeding.",
+          title: "Step Completed",
+          description: "All data saved successfully. Moving to next step...",
+        })
+        
+      } catch (error) {
+        console.error('❌ Error during navigation:', error)
+        toast({
+          title: "Navigation Error",
+          description: "An error occurred while saving. Please try again.",
           variant: "destructive",
         })
-        return
+      } finally {
+        setState(prev => ({ ...prev, isNavigating: false }))
       }
-      
-      // Step 3: Navigate to next step
-      console.log('✅ Validation passed - navigating to next step')
-      const nextIncompleteStep = getNextIncompleteStep()
-      console.log('🎯 Navigating to next incomplete step:', nextIncompleteStep)
-      setHasManuallyNavigated(true)
-      setCurrentStep(nextIncompleteStep)
-      
-      toast({
-        title: "Step Completed",
-        description: "Moving to next step...",
-      })
     }
   }, [currentStep, setCurrentStep, getNextIncompleteStep, saveAllPendingChanges, validateFromDatabase, toast])
   
@@ -470,31 +461,12 @@ export function CleanFormWizard() {
   
   
   
-  // Handle submit with complete validation
+  // Handle submit
   const handleSubmit = useCallback(async () => {
     if (!application) return
     
     setIsSubmitting(true)
     try {
-      // First save all pending changes
-      await saveAllPendingChanges()
-      
-      // Then validate the complete application
-      const validation = await validateCompleteApplication()
-      
-      if (!validation.isValid) {
-        // Show validation dialog with all missing items
-        setValidationInfo({
-          missingItems: validation.missingItems,
-          filledCount: validation.completedIndicators,
-          totalCount: validation.totalIndicators
-        })
-        setShowValidationDialog(true)
-        setIsSubmitting(false)
-        return
-      }
-      
-      // If validation passes, submit the application
       await submitApplication()
       toast({
         title: "Application Submitted",
@@ -510,7 +482,7 @@ export function CleanFormWizard() {
     } finally {
       setIsSubmitting(false)
     }
-  }, [application, submitApplication, saveAllPendingChanges, validateCompleteApplication, toast])
+  }, [application, submitApplication, toast])
   
   // Auto-navigate to next incomplete step when application loads (ONLY ONCE)
   useEffect(() => {
@@ -775,7 +747,7 @@ export function CleanFormWizard() {
                   {application.status === 'draft' && (
                     <Button 
                       onClick={handleSubmit} 
-                      disabled={isSubmitting}
+                      disabled={isSubmitting || overallProgress.completion < 100}
                       className="w-full"
                     >
                       <Lock className="h-4 w-4 mr-2" />
@@ -842,15 +814,25 @@ export function CleanFormWizard() {
                 {currentStep < formSteps.length - 1 ? (
                   <Button 
                     onClick={goToNextStep}
+                    disabled={state.isNavigating}
                     className="transition-all duration-300"
                   >
-                    Next
-                    <ArrowRight className="h-4 w-4 ml-2" />
+                    {state.isNavigating ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        Next
+                        <ArrowRight className="h-4 w-4 ml-2" />
+                      </>
+                    )}
                   </Button>
                 ) : (
                   <Button 
                     onClick={handleSubmit}
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || overallProgress.completion < 80}
                   >
                     <Lock className="h-4 w-4 mr-2" />
                     Submit Application
@@ -932,4 +914,6 @@ export function CleanFormWizard() {
       </Dialog>
     </div>
   )
-}
+})
+
+export { CleanFormWizard }

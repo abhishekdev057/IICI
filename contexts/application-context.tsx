@@ -14,12 +14,30 @@ import { useToast } from "@/components/ui/use-toast";
 import { ScoringEngine } from "@/lib/scoring-engine";
 import { PILLAR_STRUCTURE } from "@/lib/pillar-structure";
 
-// Simple debounce function
+// Optimized debounce function with performance improvements
 function debounce<T extends (...args: any[]) => any>(func: T, delay: number): T {
   let timeoutId: NodeJS.Timeout;
+  let lastCallTime = 0;
+  
   return ((...args: any[]) => {
-    clearTimeout(timeoutId);
-    timeoutId = setTimeout(() => func(...args), delay);
+    const now = Date.now();
+    
+    // Clear existing timeout
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+    
+    // If enough time has passed since last call, execute immediately
+    if (now - lastCallTime >= delay) {
+      lastCallTime = now;
+      return func(...args);
+    }
+    
+    // Otherwise, schedule for later
+    timeoutId = setTimeout(() => {
+      lastCallTime = Date.now();
+      func(...args);
+    }, delay - (now - lastCallTime));
   }) as T;
 }
 
@@ -88,6 +106,7 @@ interface ApplicationState {
   application: ApplicationData | null;
   isLoading: boolean;
   isSaving: boolean;
+  isNavigating: boolean;
   error: string | null;
   lastSaveTime: Date | null;
   isOnline: boolean;
@@ -118,15 +137,6 @@ interface ApplicationContextType {
   getNextIncompleteStep: () => number;
   saveAllPendingChanges: () => Promise<boolean>;
   validateFromDatabase: (step: number) => Promise<{ isValid: boolean; missingItems: string[] }>;
-  validateCompleteApplication: () => Promise<{
-    isValid: boolean;
-    institutionData: { isValid: boolean; missingFields: string[] };
-    pillars: any;
-    overallCompletion: number;
-    totalIndicators: number;
-    completedIndicators: number;
-    missingItems: string[];
-  }>;
 }
 
 const ApplicationContext = createContext<ApplicationContextType | null>(null);
@@ -152,29 +162,7 @@ const calculatePillarProgress = (pillarData: PillarData, pillarId: number): { co
   // Use centralized utility for progress calculation
   const result = calculatePillarProgressUtil(pillarData, pillarId, allIndicators);
   
-  // Debug logging for pillar progress
-  console.log(`🔍 calculatePillarProgress for Pillar ${pillarId}:`, {
-    totalIndicators: allIndicators.length,
-    completion: result.completion,
-    score: result.score,
-    indicatorDetails: allIndicators.map(indicatorId => {
-      const indicator = pillarData.indicators[indicatorId];
-      if (!indicator) return { indicatorId, hasValue: false, hasEvidence: false, evidenceRequired: false };
-      
-      const hasValue = indicator.value !== null && indicator.value !== undefined && indicator.value !== "";
-      const hasEvidence = validateEvidence(indicator.evidence);
-      const evidenceRequired = isEvidenceRequired(indicatorId, indicator.value);
-      
-      return {
-        indicatorId,
-        hasValue,
-        hasEvidence,
-        evidenceRequired,
-        value: indicator.value,
-        measurementUnit: getIndicatorMeasurementUnit(indicatorId)
-      };
-    })
-  });
+  // Calculate pillar progress
   
   return result;
 };
@@ -227,12 +215,7 @@ const getNextIncompleteStepHelper = (application: ApplicationData): number => {
     
     const completion = allIndicators.length > 0 ? (completedIndicators.length / allIndicators.length) * 100 : 0;
     
-    console.log(`🔍 getNextIncompleteStepHelper - Pillar ${pillarId}:`, {
-      totalIndicators: allIndicators.length,
-      completedIndicators: completedIndicators.length,
-      completion,
-      isComplete: completion >= 100
-    });
+    // Check pillar completion
     
     if (completion < 100) {
       return pillarId; // This pillar is not complete
@@ -252,6 +235,7 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
     application: null,
     isLoading: false,
     isSaving: false,
+    isNavigating: false,
     error: null,
     lastSaveTime: null,
     isOnline: typeof navigator !== 'undefined' ? navigator.onLine : true,
@@ -284,19 +268,85 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
   }, []);
   
   
-  // Smart partial save function - only saves what changed
+  // Simple and reliable partial save function
+  const processPendingChanges = useCallback(async (): Promise<void> => {
+    if (!state.application || !session?.user?.email || pendingChanges.size === 0) {
+      return;
+    }
+
+    try {
+      setState(prev => ({ ...prev, isSaving: true, error: null }));
+
+      // Get current pending changes and clear them
+      const currentPendingChanges = new Map(pendingChanges);
+      setPendingChanges(new Map());
+
+      // Process each change individually to avoid complexity
+      for (const [changeType, changes] of currentPendingChanges) {
+        const response = await fetch(`/api/applications/enhanced/${state.application.id}/partial`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            changeType,
+            changes
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || `Failed to save changes: ${response.status}`);
+        }
+      }
+
+      // Update last saved state
+      setLastSavedState(JSON.parse(JSON.stringify(state.application)));
+
+      setState(prev => ({
+        ...prev,
+        isSaving: false,
+        lastSaveTime: new Date(),
+        hasUnsavedChanges: false,
+        error: null,
+      }));
+
+    } catch (error: any) {
+      console.error('❌ Error saving partial changes:', error);
+      
+      let errorMessage = 'Failed to save changes';
+      if (error.message) {
+        if (error.message.includes('PrismaClientValidationError')) {
+          errorMessage = 'Invalid data format. Please check your input.';
+        } else if (error.message.includes('NetworkError') || error.message.includes('fetch')) {
+          errorMessage = 'Network error. Changes will be saved when connection is restored.';
+        } else {
+          errorMessage = `Save failed: ${error.message}`;
+        }
+      }
+      
+      setState(prev => ({
+        ...prev,
+        isSaving: false,
+        error: errorMessage,
+        hasUnsavedChanges: true
+      }));
+    }
+  }, [state.application, session?.user?.email, pendingChanges]);
+
+  // Optimized debounced partial save with batching
+  const debouncedPartialSave = useCallback(
+    debounce(() => {
+      processPendingChanges();
+    }, 300), // Reduced to 300ms for faster response
+    [processPendingChanges]
+  );
+
+  // Simplified immediate save function
   const savePartialChanges = useCallback(async (changeType: string, changes: any, force = false): Promise<void> => {
     if (!state.application || !session?.user?.email) {
-      console.log('❌ Cannot save partial changes: no application or session');
       return;
     }
-
-    if (state.isSaving && !force) {
-      console.log('⏳ Already saving, queuing change');
-      return;
-    }
-
-    console.log('🔄 Saving partial changes:', { changeType, changes });
 
     try {
       setState(prev => ({ ...prev, isSaving: true, error: null }));
@@ -313,101 +363,32 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
       });
 
       if (!response.ok) {
-        let errorData;
-        try {
-          errorData = await response.json();
-        } catch (parseError) {
-          console.error('❌ Failed to parse error response:', parseError);
-          errorData = { error: `HTTP ${response.status}: ${response.statusText}` };
-        }
-        throw new Error(errorData.error || `Failed to save changes (${response.status})`);
-      }
-
-      let result;
-      try {
-        result = await response.json();
-        console.log('✅ Partial save successful:', result);
-      } catch (parseError) {
-        console.error('❌ Failed to parse success response:', parseError);
-        result = { message: 'Changes saved successfully' };
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Failed to save changes: ${response.status}`);
       }
 
       // Update last saved state
-      try {
-        setLastSavedState(JSON.parse(JSON.stringify(state.application)));
-      } catch (serializeError) {
-        console.error('❌ Failed to serialize application state:', serializeError);
-        // Don't fail the save just because we can't serialize the state
-      }
+      setLastSavedState(JSON.parse(JSON.stringify(state.application)));
       
-      // Remove this change from pending changes
-      setPendingChanges(prev => {
-        const newMap = new Map(prev);
-        newMap.delete(changeType);
-        return newMap;
-      });
-
       setState(prev => ({
         ...prev,
         isSaving: false,
+        hasUnsavedChanges: false,
         lastSaveTime: new Date(),
-        hasUnsavedChanges: pendingChanges.size > 1, // Still has changes if other changes pending
         error: null,
       }));
-
-      if (force) {
-        toast({
-          title: "Changes Saved",
-          description: "Your changes have been saved successfully.",
-        });
-      }
 
     } catch (error: any) {
       console.error('❌ Error saving partial changes:', error);
       
-      // Extract meaningful error message
-      let errorMessage = 'Failed to save changes';
-      if (error.message) {
-        if (error.message.includes('PrismaClientValidationError')) {
-          errorMessage = 'Invalid data format. Please check your input.';
-        } else if (error.message.includes('Failed to save changes')) {
-          errorMessage = error.message;
-        } else {
-          errorMessage = `Save failed: ${error.message}`;
-        }
-      }
-      
-      // Clear pending changes on error to prevent stuck state
-      setPendingChanges(prev => {
-        const newMap = new Map(prev);
-        newMap.delete(changeType);
-        return newMap;
-      });
-
       setState(prev => ({
         ...prev,
         isSaving: false,
-        error: errorMessage,
+        error: error.message,
         hasUnsavedChanges: true
       }));
-
-      if (force) {
-        toast({
-          title: "Save Failed",
-          description: errorMessage,
-          variant: "destructive",
-        });
-      }
     }
-  }, [state.application, state.isSaving, session?.user?.email, pendingChanges.size, toast]);
-
-  // Debounced partial save
-  const debouncedPartialSave = useCallback(
-    debounce((changeType: string, changes: any) => {
-      savePartialChanges(changeType, changes, false);
-    }, 150), // 150ms debounce for evidence changes
-    [savePartialChanges]
-  );
+  }, [state.application, session?.user?.email]);
 
   // Load application with duplicate prevention
   const loadApplication = useCallback(async (retryCount = 0) => {
@@ -415,125 +396,41 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
     
     // Prevent multiple simultaneous load requests
     if (state.isLoading) {
-      console.log('⚠️ Application load already in progress, skipping...');
+      // Application load already in progress
       return;
     }
     
-    const maxRetries = 3;
+    const maxRetries = 2;
     const retryDelay = 1000 * Math.pow(2, retryCount); // Exponential backoff
-    const startTime = Date.now();
-
+    
     try {
       setState(prev => ({ ...prev, isLoading: true, error: null }));
       
-      // Add timeout to prevent hanging requests
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => {
-        console.log('⏰ Request timeout reached, aborting...');
-        controller.abort('Request timeout');
-      }, 30000); // 30 second timeout (increased from 15s)
-
-      // First get the list of applications to find the current one
-      const listResponse = await fetch('/api/applications/enhanced', {
-        signal: controller.signal
-      });
-      
-      if (!listResponse.ok) {
-        throw new Error(`Failed to load applications list: ${listResponse.status} ${listResponse.statusText}`);
-      }
-      
-      const { data: applications } = await listResponse.json();
-      
-      if (!applications || applications.length === 0) {
-        console.log('No applications found, creating new one...');
-        // Create new application
-        const createResponse = await fetch('/api/applications/enhanced', { 
-          method: 'POST',
-          signal: controller.signal
-        });
-        if (!createResponse.ok) {
-          throw new Error(`Failed to create application: ${createResponse.status} ${createResponse.statusText}`);
-        }
-        const { data: newApp } = await createResponse.json();
-        applications = [newApp];
-      }
-      
-      // Now get the detailed application data with evidence
-      const appId = applications[0].id;
-      const response = await fetch(`/api/applications/enhanced/${appId}`, {
-        signal: controller.signal
-      });
-      
-      clearTimeout(timeoutId);
+      // Simple fetch without AbortController to avoid signal issues
+      const response = await fetch('/api/applications/enhanced');
       
       if (!response.ok) {
         // Retry on server errors
         if ((response.status >= 500 || response.status === 0) && retryCount < maxRetries) {
-          console.log(`🔄 Retrying load in ${retryDelay}ms... (attempt ${retryCount + 1}/${maxRetries})`);
+          // Retrying load
           await new Promise(resolve => setTimeout(resolve, retryDelay));
           return loadApplication(retryCount + 1);
         }
         throw new Error(`Failed to load applications: ${response.status} ${response.statusText}`);
       }
       
-      const { data: app } = await response.json();
+      const { data: applications } = await response.json();
       
-      if (app) {
+      if (applications && applications.length > 0) {
+        const app = applications[0];
         
         // Use the properly structured pillar data from the API
         // The API now returns evidence properly attached to indicators
         const pillarData = app.pillarData || {};
         
-              console.log('📥 Loaded pillar data from API:', {
-                pillarDataKeys: Object.keys(pillarData),
-                samplePillarData: pillarData.pillar_1 || pillarData.pillar_2,
-                hasIndicatorResponses: !!app.indicatorResponses,
-                indicatorResponsesCount: app.indicatorResponses?.length || 0
-              });
-
-              // Log loading performance
-              const loadTime = Date.now() - startTime;
-              console.log(`⏱️ Application loaded in ${loadTime}ms`);
-
-              if (loadTime > 5000) {
-                console.warn('⚠️ Slow loading detected, consider optimizing data processing');
-              }
-
-              // Debug pillar 6 data specifically
-              if (pillarData.pillar_6) {
-                console.log('🔍 Pillar 6 data loaded:', {
-                  indicators: Object.keys(pillarData.pillar_6.indicators || {}),
-                  indicator_6_1_3: pillarData.pillar_6.indicators?.['6.1.3']
-                });
-              }
+        // Loaded pillar data from API
         
-        // Special debugging for pillar 6 and indicator 6.1.3
-        if (pillarData.pillar_6) {
-          console.log('🔍 Pillar 6 data:', pillarData.pillar_6);
-          if (pillarData.pillar_6.indicators?.['6.1.3']) {
-            console.log('🔍 Indicator 6.1.3 data:', pillarData.pillar_6.indicators['6.1.3']);
-          } else {
-            console.log('❌ Indicator 6.1.3 not found in pillar 6 data');
-          }
-        } else {
-          console.log('❌ Pillar 6 data not found');
-        }
-        
-        // Debug specific pillar data
-        if (pillarData.pillar_1) {
-          console.log('📥 Pillar 1 data:', {
-            indicators: Object.keys(pillarData.pillar_1.indicators || {}),
-            completion: pillarData.pillar_1.completion,
-            sampleIndicator: pillarData.pillar_1.indicators?.['1.1.1']
-          });
-        }
-        if (pillarData.pillar_2) {
-          console.log('📥 Pillar 2 data:', {
-            indicators: Object.keys(pillarData.pillar_2.indicators || {}),
-            completion: pillarData.pillar_2.completion,
-            sampleIndicator: pillarData.pillar_2.indicators?.['2.1.1']
-          });
-        }
+        // Pillar data loaded
         
         const applicationData: ApplicationData = {
           id: app.id,
@@ -553,17 +450,13 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
           currentStep: 0, // Will be calculated based on completion
         };
         
-        console.log('Loaded application data:', {
-          id: applicationData.id,
-          pillarDataKeys: Object.keys(applicationData.pillarData),
-          samplePillarData: applicationData.pillarData.pillar_1 || applicationData.pillarData.pillar_4
-        });
+        // Application data loaded
         
         // Automatically navigate to the next incomplete step based on database data
         const nextIncompleteStep = getNextIncompleteStepHelper(applicationData);
         applicationData.currentStep = nextIncompleteStep;
         
-        console.log('🎯 Auto-navigating to next incomplete step:', nextIncompleteStep);
+        // Auto-navigating to next incomplete step
         
         setState(prev => ({
           ...prev,
@@ -572,35 +465,107 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
           hasUnsavedChanges: false,
         }));
       } else {
-        throw new Error('No application data received from server');
+        // Create new application with enhanced error handling
+        // No existing application found, creating new one
+        const createResponse = await fetch('/api/applications/enhanced', { method: 'POST' });
+        if (!createResponse.ok) {
+          const errorData = await createResponse.json().catch(() => ({}));
+          console.error('Application creation failed:', {
+            status: createResponse.status,
+            statusText: createResponse.statusText,
+            error: errorData
+          });
+          
+          // Handle specific error cases
+          if (createResponse.status === 409) {
+            // Application already exists (race condition), try to fetch it
+            console.log('⚠️ Application already exists, fetching existing one...');
+            const fetchResponse = await fetch('/api/applications/enhanced');
+            if (fetchResponse.ok) {
+              const responseData = await fetchResponse.json();
+              console.log('🔄 API Response:', responseData);
+              const { data: existingApps } = responseData;
+              if (existingApps && existingApps.length > 0) {
+                const app = existingApps[0];
+                console.log('🔄 First application from API:', app);
+                // Process existing application data...
+                const applicationData: ApplicationData = {
+                  id: app.id,
+                  institutionData: app.institutionData || {
+                    name: "",
+                    industry: "",
+                    organizationSize: "",
+                    country: "",
+                    contactEmail: session.user.email,
+                  },
+                  pillarData: app.pillarData || {}, // This is the transformed data from API
+                  scores: app.scores,
+                  status: app.status?.toLowerCase() || "draft",
+                  submittedAt: app.submittedAt ? new Date(app.submittedAt) : undefined,
+                  lastSaved: new Date(app.lastSaved),
+                  lastModified: new Date(app.lastModified),
+                  currentStep: 0,
+                };
+                
+                console.log('🔄 Loaded application data:', {
+                  id: app.id,
+                  pillarDataKeys: Object.keys(app.pillarData || {}),
+                  pillarData: app.pillarData
+                });
+                
+                setState(prev => ({
+                  ...prev,
+                  application: applicationData,
+                  isLoading: false,
+                  hasUnsavedChanges: false,
+                }));
+                return;
+              }
+            }
+          }
+          
+          throw new Error(`Failed to create application: ${createResponse.status} ${createResponse.statusText}`);
+        }
+        
+        const { data: newApp } = await createResponse.json();
+        console.log('Application created successfully:', newApp);
+        
+        const applicationData: ApplicationData = {
+          id: newApp.id,
+          institutionData: newApp.institutionData || {
+            name: "",
+            industry: "",
+            organizationSize: "",
+            country: "",
+            contactEmail: session.user.email,
+          },
+          pillarData: {},
+          scores: null,
+          status: "draft",
+          lastSaved: new Date(),
+          lastModified: new Date(),
+          currentStep: 0, // New application starts at step 0 (institution setup)
+        };
+        
+        console.log('🎯 New application created, starting at step 0 (institution setup)');
+        
+        setState(prev => ({
+          ...prev,
+          application: applicationData,
+          isLoading: false,
+          hasUnsavedChanges: false,
+        }));
       }
     } catch (error) {
       console.error('Load error:', error);
-
-      // Handle timeout errors specifically
-      if (error instanceof Error && error.name === 'AbortError') {
-        if (retryCount < maxRetries) {
-          console.log(`⏰ Request timeout, retrying load in ${retryDelay}ms... (attempt ${retryCount + 1}/${maxRetries})`);
-          await new Promise(resolve => setTimeout(resolve, retryDelay));
-          return loadApplication(retryCount + 1);
-        } else {
-          console.error('❌ Max retries reached for timeout errors');
-          setState(prev => ({
-            ...prev,
-            error: 'Application is taking too long to load. Please check your internet connection and try again.',
-            isLoading: false,
-          }));
-          return;
-        }
-      }
-
-      // Handle other network errors with retry
-      if (error instanceof Error && (error.message.includes('fetch') || error.message.includes('network')) && retryCount < maxRetries) {
-        console.log(`🔄 Network error, retrying load in ${retryDelay}ms... (attempt ${retryCount + 1}/${maxRetries})`);
+      
+      // Retry on network errors (but not AbortError since we removed AbortController)
+      if (error instanceof Error && !error.message.includes('Failed to load applications') && retryCount < maxRetries) {
+        console.log(`🔄 Retrying after error in ${retryDelay}ms... (attempt ${retryCount + 1}/${maxRetries})`);
         await new Promise(resolve => setTimeout(resolve, retryDelay));
         return loadApplication(retryCount + 1);
       }
-
+      
       setState(prev => ({
         ...prev,
         error: error instanceof Error ? error.message : 'Failed to load application',
@@ -655,29 +620,10 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
         evidence?: EvidenceData;
       }> = [];
       
-      console.log('🔍 Preparing to save application data:', {
-        applicationId: state.application.id,
-        pillarDataKeys: Object.keys(state.application.pillarData || {}),
-        pillarDataStructure: state.application.pillarData,
-        hasPillarData: !!state.application.pillarData,
-        pillarDataType: typeof state.application.pillarData
-      });
-      
-      // Debug evidence data specifically
-      if (state.application.pillarData) {
-        Object.entries(state.application.pillarData).forEach(([pillarKey, pillarData]) => {
-          if (pillarData.indicators) {
-            Object.entries(pillarData.indicators).forEach(([indicatorId, indicator]) => {
-              if (indicator.evidence && Object.keys(indicator.evidence).length > 0) {
-                console.log(`🔍 Evidence found for ${indicatorId}:`, indicator.evidence);
-              }
-            });
-          }
-        });
-      }
+      // Prepare indicator responses for saving
       
       if (!state.application.pillarData || Object.keys(state.application.pillarData).length === 0) {
-        console.log('⚠️ No pillar data found to save - this is normal for new applications');
+        // No pillar data to save - this is normal for new applications
         // Don't return early - still save institution data and other updates
       }
       
@@ -687,11 +633,7 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
         const pillarId = parseInt(pillarKey.replace('pillar_', ''));
         if (isNaN(pillarId)) return;
         
-        console.log(`🔍 Processing pillar ${pillarId}:`, {
-          pillarKey,
-          indicatorsCount: Object.keys(pillarData.indicators || {}).length,
-          indicators: pillarData.indicators
-        });
+        // Process pillar data
         
         Object.entries(pillarData.indicators).forEach(([indicatorId, indicator]) => {
           const hasEvidence = !!(
@@ -739,29 +681,12 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
       
       // Check if application has an ID
       if (!state.application.id) {
-        console.error('Cannot save application: No application ID');
         throw new Error('Application not properly initialized. Please refresh the page.');
       }
       
-      console.log('💾 Saving application:', {
-        id: state.application.id,
-        status: state.application.status,
-        indicatorResponsesCount: indicatorResponses.length,
-        sampleIndicatorResponse: indicatorResponses[0],
-        hasUnsavedChanges: state.hasUnsavedChanges,
-        allIndicatorResponses: indicatorResponses
-      });
-      
       // Save to backend with timeout and retry logic - FIXED abort handling
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => {
-        console.log('⏰ Request timeout, aborting...');
-        controller.abort();
-      }, 10000); // 10 second timeout
-      
-      let response;
-      try {
-        response = await fetch(`/api/applications/enhanced/${state.application.id}`, {
+      // Simple fetch without AbortController to avoid signal issues
+      const response = await fetch(`/api/applications/enhanced/${state.application.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -769,32 +694,16 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
           institutionData: state.application.institutionData,
           pillarData: state.application.pillarData,
           indicatorResponses,
-        }),
-          signal: controller.signal
-        });
-      } catch (fetchError: unknown) {
-        clearTimeout(timeoutId);
-        if (fetchError instanceof Error && fetchError.name === 'AbortError') {
-          console.log('🚫 Request was aborted due to timeout');
-          throw new Error('Request timeout - please try again');
-        }
-        throw fetchError;
-      }
-      
-      clearTimeout(timeoutId);
+        })
+      });
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        console.error('Save failed:', {
-          status: response.status,
-          statusText: response.statusText,
-          error: errorData,
-          retryCount
-        });
+        // Save failed
         
         // Retry on server errors (5xx) or network issues - FIXED to prevent nested loops
         if ((response.status >= 500 || response.status === 0) && retryCount < maxRetries) {
-          console.log(`🔄 Retrying save in ${retryDelay}ms... (attempt ${retryCount + 1}/${maxRetries})`);
+          // Retrying save
           setState(prev => ({ ...prev, isSaving: false })); // Reset saving state
           await new Promise(resolve => setTimeout(resolve, retryDelay));
           return await saveApplicationInternal(force, retryCount + 1);
@@ -826,9 +735,9 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error('Save error:', error);
       
-      // Retry on network errors - FIXED to prevent nested loops
-      if (error instanceof Error && (error.name === 'AbortError' || error.message.includes('timeout')) && retryCount < maxRetries) {
-        console.log(`🔄 Network timeout, retrying in ${retryDelay}ms... (attempt ${retryCount + 1}/${maxRetries})`);
+      // Retry on network errors (but not AbortError since we removed AbortController)
+      if (error instanceof Error && !error.message.includes('Failed to save') && retryCount < maxRetries) {
+        console.log(`🔄 Retrying save in ${retryDelay}ms... (attempt ${retryCount + 1}/${maxRetries})`);
         setState(prev => ({ ...prev, isSaving: false })); // Reset saving state
         await new Promise(resolve => setTimeout(resolve, retryDelay));
         return await saveApplicationInternal(force, retryCount + 1);
@@ -916,7 +825,10 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
       },
       hasUnsavedChanges: true,
     }));
-  }, [state.application]);
+    
+    // Save institution data immediately using partial save
+    savePartialChanges('institution', data);
+  }, [state.application, savePartialChanges]);
   
   // Update indicator value
   const updateIndicator = useCallback((pillarId: number, indicatorId: string, value: any) => {
@@ -951,7 +863,6 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
       const hasValueChanged = currentValue !== value;
       
       if (!hasValueChanged) {
-        console.log('🔍 updateIndicator: Value unchanged for', indicatorId, '- skipping save');
         return prev; // No change, don't trigger save
       }
       
@@ -974,7 +885,7 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
       newPillarData[pillarKey].completion = progress.completion;
       newPillarData[pillarKey].score = progress.score;
       
-      console.log('🔍 updateIndicator: Value changed for', indicatorId, '- triggering partial save');
+      // Value changed, triggering save
       
       return {
         ...prev,
@@ -988,30 +899,26 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
     });
 
     // Trigger smart partial save
-    const changeKey = `indicator_${pillarId}_${indicatorId}`;
-    setPendingChanges(prev => new Map(prev.set(changeKey, { pillarId, indicatorId, value })));
-    debouncedPartialSave('indicator', { pillarId, indicatorId, value });
-  }, [state.application, debouncedPartialSave]);
+    savePartialChanges('indicator', { pillarId, indicatorId, value });
+  }, [state.application, savePartialChanges]);
   
-  // Update evidence - ENHANCED with detailed debugging
+  // Update evidence
   const updateEvidence = useCallback((pillarId: number, indicatorId: string, evidence: EvidenceData) => {
-    console.log(`💾 updateEvidence called: pillarId=${pillarId}, indicatorId=${indicatorId}`)
-    console.log(`💾 Evidence data:`, JSON.stringify(evidence, null, 2))
     if (!state.application) {
       console.error('❌ No application found in state');
       return;
     }
-
+    
     const pillarKey = `pillar_${pillarId}`;
-
+    
     setState(prev => {
       if (!prev.application) {
         console.error('❌ No application in previous state');
         return prev;
       }
-
+      
       const newPillarData = { ...prev.application.pillarData };
-
+      
       if (!newPillarData[pillarKey]) {
         newPillarData[pillarKey] = {
           indicators: {},
@@ -1020,12 +927,12 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
           score: 0,
         };
       }
-
+      
       // Ensure indicators object exists
       if (!newPillarData[pillarKey].indicators) {
         newPillarData[pillarKey].indicators = {};
       }
-
+      
       if (!newPillarData[pillarKey].indicators[indicatorId]) {
         newPillarData[pillarKey].indicators[indicatorId] = {
           id: indicatorId,
@@ -1034,49 +941,26 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
           lastModified: new Date(),
         };
       }
-
-      // Merge evidence data properly, preserving existing values and ensuring consistency
+      
+      // Merge evidence data properly, preserving existing values
       const existingEvidence = newPillarData[pillarKey].indicators[indicatorId].evidence || {};
-      console.log(`💾 Existing evidence for ${indicatorId}:`, existingEvidence)
-
-      // Clean and normalize evidence data
-      const cleanEvidence = {
-        text: evidence.text?.description?.trim() ? {
-          description: evidence.text.description.trim(),
-          _persisted: evidence.text._persisted !== false // Default to true for new evidence
-        } : null,
-        link: evidence.link?.url?.trim() ? {
-          url: evidence.link.url.trim(),
-          description: evidence.link.description?.trim() || '',
-          _persisted: evidence.link._persisted !== false
-        } : null,
-        file: evidence.file?.fileName?.trim() ? {
-          fileName: evidence.file.fileName.trim(),
-          fileSize: evidence.file.fileSize,
-          fileType: evidence.file.fileType,
-          url: evidence.file.url,
-          description: evidence.file.description?.trim() || '',
-          _persisted: evidence.file._persisted !== false
-        } : null
-      };
-
+      
       const mergedEvidence = {
-        text: cleanEvidence.text || existingEvidence.text,
-        link: cleanEvidence.link || existingEvidence.link,
-        file: cleanEvidence.file || existingEvidence.file,
+        ...existingEvidence,
+        ...evidence,
+        // Ensure _persisted flags are properly set
+        text: evidence.text ? { ...evidence.text, _persisted: evidence.text._persisted || false } : existingEvidence.text,
+        link: evidence.link ? { ...evidence.link, _persisted: evidence.link._persisted || false } : existingEvidence.link,
+        file: evidence.file ? { ...evidence.file, _persisted: evidence.file._persisted || false } : existingEvidence.file,
       };
-
-      console.log(`💾 Cleaned evidence for ${indicatorId}:`, cleanEvidence)
-      console.log(`💾 Merged evidence for ${indicatorId}:`, mergedEvidence)
-
+      
       // Check if evidence actually changed
       const hasEvidenceChanged = JSON.stringify(existingEvidence) !== JSON.stringify(mergedEvidence);
-
+      
       if (!hasEvidenceChanged) {
-        console.log('🔍 updateEvidence: Evidence unchanged for', indicatorId, '- skipping save');
         return prev; // No change, don't trigger save
       }
-
+      
       newPillarData[pillarKey] = {
         ...newPillarData[pillarKey],
         indicators: {
@@ -1089,31 +973,14 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
         },
         lastModified: new Date(),
       };
-
+      
       // Recalculate pillar progress
       const progress = calculatePillarProgress(newPillarData[pillarKey], pillarId);
       newPillarData[pillarKey].completion = progress.completion;
       newPillarData[pillarKey].score = progress.score;
-
-      console.log(`💾 Updated evidence for ${pillarKey}.${indicatorId}:`, {
-        evidence: mergedEvidence,
-        completion: progress.completion,
-        score: progress.score
-      });
-
-      // Log specific evidence types for debugging
-      if (mergedEvidence.text?.description) {
-        console.log(`✅ Text evidence saved for ${indicatorId}:`, mergedEvidence.text.description)
-      }
-      if (mergedEvidence.link?.url) {
-        console.log(`✅ Link evidence saved for ${indicatorId}:`, { url: mergedEvidence.link.url, description: mergedEvidence.link.description })
-      }
-      if (mergedEvidence.file?.fileName) {
-        console.log(`✅ File evidence saved for ${indicatorId}:`, mergedEvidence.file.fileName)
-      }
-
-      console.log('🔍 updateEvidence: Evidence changed for', indicatorId, '- triggering partial save');
-
+      
+      // Evidence updated successfully
+      
       return {
         ...prev,
         application: {
@@ -1125,11 +992,9 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
       };
     });
 
-    // Trigger smart partial save with cleaned evidence
-    const changeKey = `evidence_${pillarId}_${indicatorId}`;
-    setPendingChanges(prev => new Map(prev.set(changeKey, { pillarId, indicatorId, evidence })));
-    debouncedPartialSave('evidence', { pillarId, indicatorId, evidence });
-  }, [state.application, debouncedPartialSave]);
+    // Trigger smart partial save
+    savePartialChanges('evidence', { pillarId, indicatorId, evidence });
+  }, [state.application, savePartialChanges]);
   
   // Save all pending changes before navigation
   const saveAllPendingChanges = useCallback(async (): Promise<boolean> => {
@@ -1138,22 +1003,64 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
       return true;
     }
 
-    console.log('🔄 Saving all pending changes before navigation:', pendingChanges.size);
+    console.log(`💾 Force saving ${pendingChanges.size} pending changes...`);
 
     try {
       setState(prev => ({ ...prev, isSaving: true, error: null }));
 
-      // Save all pending changes
-      const savePromises = Array.from(pendingChanges.entries()).map(([changeKey, changeData]) => {
-        const changeType = changeKey.startsWith('indicator_') ? 'indicator' : 
-                          changeKey.startsWith('evidence_') ? 'evidence' : 'unknown';
-        return savePartialChanges(changeType, changeData, true);
-      });
-
-      await Promise.all(savePromises);
-
-      // Clear all pending changes
+      // Get current pending changes and clear them immediately
+      const currentPendingChanges = new Map(pendingChanges);
       setPendingChanges(new Map());
+
+      // Save each change individually with error handling
+      let allSaved = true;
+      const errors: string[] = [];
+
+      for (const [changeKey, changeData] of currentPendingChanges) {
+        try {
+          const changeType = changeKey.startsWith('indicator_') ? 'indicator' : 
+                            changeKey.startsWith('evidence_') ? 'evidence' : 
+                            changeKey.startsWith('institution_') ? 'institution' : 'unknown';
+          
+          console.log(`🔄 Saving ${changeType}:`, changeData);
+          
+          const response = await fetch(`/api/applications/enhanced/${state.application?.id}/partial`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              changeType,
+              changes: changeData
+            }),
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || `Failed to save ${changeType}: ${response.status}`);
+          }
+
+          console.log(`✅ Successfully saved ${changeType}`);
+          
+        } catch (error: any) {
+          console.error(`❌ Failed to save ${changeKey}:`, error);
+          errors.push(`${changeKey}: ${error.message}`);
+          allSaved = false;
+        }
+      }
+
+      if (!allSaved) {
+        console.error('❌ Some changes failed to save:', errors);
+        setState(prev => ({
+          ...prev,
+          isSaving: false,
+          error: `Failed to save some changes: ${errors.join(', ')}`,
+        }));
+        return false;
+      }
+
+      // Update last saved state
+      setLastSavedState(JSON.parse(JSON.stringify(state.application)));
       
       setState(prev => ({
         ...prev,
@@ -1492,56 +1399,6 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
     }
   }, [state.application]);
 
-  // Complete application validation function
-  const validateCompleteApplication = useCallback(async (): Promise<{
-    isValid: boolean;
-    institutionData: { isValid: boolean; missingFields: string[] };
-    pillars: any;
-    overallCompletion: number;
-    totalIndicators: number;
-    completedIndicators: number;
-    missingItems: string[];
-  }> => {
-    if (!state.application) {
-      return {
-        isValid: false,
-        institutionData: { isValid: false, missingFields: ['No application found'] },
-        pillars: {},
-        overallCompletion: 0,
-        totalIndicators: 0,
-        completedIndicators: 0,
-        missingItems: ['No application found']
-      };
-    }
-
-    try {
-      const response = await fetch(`/api/applications/enhanced/${state.application.id}/validate-complete`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to validate complete application');
-      }
-
-      const result = await response.json();
-      return result.data;
-    } catch (error: any) {
-      console.error('❌ Error validating complete application:', error);
-      return {
-        isValid: false,
-        institutionData: { isValid: false, missingFields: ['Validation failed'] },
-        pillars: {},
-        overallCompletion: 0,
-        totalIndicators: 0,
-        completedIndicators: 0,
-        missingItems: ['Validation failed']
-      };
-    }
-  }, [state.application]);
-
   // Expose refresh function in context
   const contextValue: ApplicationContextType = {
     state,
@@ -1561,7 +1418,6 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
     debugDataState, // Add debug function
     saveAllPendingChanges, // Add save all pending changes function
     validateFromDatabase, // Add database validation function
-    validateCompleteApplication, // Add complete validation function
   };
   
   return (

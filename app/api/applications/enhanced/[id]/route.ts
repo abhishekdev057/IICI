@@ -8,19 +8,17 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const startTime = Date.now()
+  
   try {
-    console.log('🔍 GET /api/applications/enhanced/[id] called')
     const session = await getServerSession(authOptions)
     if (!session?.user) {
-      console.log('❌ No session found')
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-    console.log('✅ Session found for user:', session.user.email)
 
     const { id } = await params
-    console.log('🔍 Application ID:', id)
     
-    // Get application with optimized related data (include necessary fields)
+    // Get application with all related data
     const application = await prisma.application.findUnique({
       where: { id },
       include: {
@@ -31,27 +29,15 @@ export async function GET(
             evidence: true
           }
         },
-        scoreAudits: {
-          take: 1, // Only get the latest score audit for performance
-          orderBy: { calculatedAt: 'desc' }
-        },
-        certifications: {
-          take: 1, // Only get the latest certification for performance
-          orderBy: { issuedAt: 'desc' }
-        },
-        // adminReviews: {
-        //   include: {
-        //     user: true
-        //   }
-        // } // Commented out for performance - can be loaded separately if needed
+        evidence: true,
+        scoreAudits: true,
+        certifications: true,
+        adminReviews: {
+          include: {
+            user: true
+          }
+        }
       }
-    })
-
-    console.log('🔍 Application data from database:', {
-      id: application?.id,
-      indicatorResponsesCount: application?.indicatorResponses?.length,
-      evidenceCount: application?.evidence?.length,
-      sampleIndicatorResponse: application?.indicatorResponses?.[0]
     })
 
     if (!application) {
@@ -84,48 +70,32 @@ export async function GET(
         console.log(`🔍 Processing evidence for indicator ${response.indicatorId}:`, response.evidence);
         response.evidence.forEach(ev => {
           console.log(`🔍 Evidence item:`, { type: ev.type, fileName: ev.fileName, url: ev.url, description: ev.description });
-
-          try {
-            // Load evidence consistently with saving logic - load all evidence types
-            if (ev.type === 'TEXT') {
-              evidence.text = {
-                description: ev.description?.trim() || '',
-                _persisted: true
-              }
-              console.log(`✅ Created text evidence:`, evidence.text);
-            } else if (ev.type === 'FILE') {
-              evidence.file = {
-                fileName: ev.fileName?.trim() || '',
-                fileSize: ev.fileSize,
-                fileType: ev.fileType,
-                url: ev.url || '',
-                description: ev.description?.trim() || '',
-                _persisted: true
-              }
-              console.log(`✅ Created file evidence:`, evidence.file);
-            } else if (ev.type === 'LINK') {
-              evidence.link = {
-                url: ev.url?.trim() || '',
-                description: ev.description?.trim() || '',
-                _persisted: true
-              }
-              console.log(`✅ Created link evidence:`, evidence.link);
+          
+          if (ev.type === 'FILE' && ev.fileName) {
+            evidence.file = {
+              fileName: ev.fileName,
+              fileSize: ev.fileSize,
+              fileType: ev.fileType,
+              url: ev.url || '',
+              description: ev.description || '',
+              _persisted: true
             }
-          } catch (error) {
-            console.error(`❌ Error processing evidence item:`, ev, error);
+            console.log(`✅ Created file evidence:`, evidence.file);
+          } else if (ev.type === 'LINK' && ev.url && ev.url.trim() !== '') {
+            evidence.link = {
+              url: ev.url,
+              description: ev.description || '',
+              _persisted: true
+            }
+            console.log(`✅ Created link evidence:`, evidence.link);
+          } else if (ev.type === 'LINK' && ev.description && (!ev.url || ev.url.trim() === '')) {
+            evidence.text = {
+              description: ev.description,
+              _persisted: true
+            }
+            console.log(`✅ Created text evidence:`, evidence.text);
           }
         })
-      }
-      
-      // Special debugging for indicator 6.1.3
-      if (response.indicatorId === '6.1.3') {
-        console.log(`🔍 SPECIAL DEBUG for 6.1.3:`, {
-          indicatorId: response.indicatorId,
-          rawValue: response.rawValue,
-          evidenceCount: response.evidence?.length,
-          evidence: response.evidence,
-          finalEvidence: evidence
-        });
       }
       
       console.log(`🔍 Final evidence for ${response.indicatorId}:`, evidence);
@@ -179,13 +149,13 @@ export async function GET(
       id: application.id,
       institutionData: application.institutionData,
       pillarData,
-      scores: application.scoreAudits?.[0] || null,
+      scores: application.scoreAudits[0] || null,
       status: application.status?.toLowerCase() || 'draft',
       submittedAt: application.submittedAt,
       lastSaved: application.updatedAt,
       lastModified: application.updatedAt,
-      certifications: application.certifications?.[0] || null,
-      adminReviews: null // Not loading admin reviews for performance
+      certifications: application.certifications,
+      adminReviews: application.adminReviews
     }
 
     console.log('🔍 API returning transformed application:', {
@@ -197,19 +167,21 @@ export async function GET(
       pillar2Completion: pillarData.pillar_2?.completion
     });
 
-    console.log('✅ Returning transformed application data')
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       data: transformedApplication
     })
+    
+    // Add performance headers
+    const duration = Date.now() - startTime
+    response.headers.set('X-Response-Time', `${duration}ms`)
+    response.headers.set('Cache-Control', 'private, max-age=60, stale-while-revalidate=300')
+    
+    return response
   } catch (error) {
-    console.error('❌ Error fetching application:', error)
-    console.error('❌ Error details:', {
-      message: error.message,
-      stack: error.stack
-    })
+    console.error('Error fetching application:', error)
     return NextResponse.json(
-      { error: 'Failed to fetch application', details: error.message },
+      { error: 'Failed to fetch application' },
       { status: 500 }
     )
   }
@@ -419,7 +391,7 @@ export async function PUT(
                   fileName: null,
                   fileSize: null,
                   fileType: null,
-                  url: '',
+                  url: '', // Empty URL for text evidence
                   description: evidence.text.description.trim()
                 })
               }

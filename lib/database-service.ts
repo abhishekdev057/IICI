@@ -17,14 +17,68 @@ export class DatabaseService {
     return await prisma.user.findUnique({
       where: { id },
       include: {
-        institutionData: true,
+        institutionData: {
+          select: {
+            id: true,
+            name: true,
+            industry: true,
+            organizationSize: true,
+            country: true,
+            contactEmail: true,
+            logo: true,
+            website: true
+          }
+        },
         applications: {
           include: {
-            institutionData: true,
-            indicatorResponses: true,
-            evidence: true,
-            scoreAudits: true,
-            certifications: true,
+            institutionData: {
+              select: {
+                id: true,
+                name: true,
+                industry: true,
+                organizationSize: true,
+                country: true,
+                contactEmail: true
+              }
+            },
+            indicatorResponses: {
+              select: {
+                id: true,
+                indicatorId: true,
+                pillarId: true,
+                rawValue: true,
+                normalizedScore: true,
+                hasEvidence: true
+              }
+            },
+            evidence: {
+              select: {
+                id: true,
+                type: true,
+                fileName: true,
+                url: true,
+                description: true
+              }
+            },
+            scoreAudits: {
+              select: {
+                id: true,
+                overallScore: true,
+                certificationLevel: true,
+                calculatedAt: true
+              },
+              orderBy: { calculatedAt: 'desc' },
+              take: 1
+            },
+            certifications: {
+              select: {
+                id: true,
+                certificationLevel: true,
+                overallScore: true,
+                issuedAt: true,
+                isActive: true
+              }
+            },
           },
           orderBy: { createdAt: 'desc' }
         }

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, memo, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useApplication } from "@/contexts/application-context"
 import { Building2, Upload, X, Image } from "lucide-react"
 
-export function InstitutionSetup() {
+const InstitutionSetup = memo(function InstitutionSetup() {
   const { state, updateInstitution } = useApplication()
   const [formData, setFormData] = useState({
     name: "",
@@ -27,11 +27,8 @@ export function InstitutionSetup() {
   const application = state.application
 
   useEffect(() => {
-    console.log('🔍 Institution setup - application data:', application)
-    console.log('🔍 Institution setup - institution data:', application?.institutionData)
-    
     if (application?.institutionData) {
-      const newFormData = {
+      setFormData({
         name: application.institutionData.name || "",
         industry: application.institutionData.industry || "",
         organizationSize: application.institutionData.organizationSize || "",
@@ -40,16 +37,11 @@ export function InstitutionSetup() {
         website: application.institutionData.website || "",
         description: application.institutionData.description || "",
         logo: application.institutionData.logo || ""
-      }
-      console.log('🔍 Institution setup - setting form data:', newFormData)
-      setFormData(newFormData)
-      
+      })
       // Set logo preview if logo exists
       if (application.institutionData.logo) {
         setLogoPreview(application.institutionData.logo)
       }
-    } else {
-      console.log('⚠️ Institution setup - no institution data found')
     }
   }, [application?.institutionData])
 
@@ -270,4 +262,6 @@ export function InstitutionSetup() {
       </Card>
     </div>
   )
-}
+})
+
+export { InstitutionSetup }
