@@ -484,7 +484,7 @@ export function ExportReports({
 
     try {
       // Use exceljs instead of xlsx to avoid self reference issues
-      const ExcelJS = await import('exceljs');
+      const ExcelJS = await import("exceljs");
 
       console.log("Starting Excel export...", {
         organizationName,
@@ -564,21 +564,21 @@ export function ExportReports({
       ];
 
       const executiveSheet = workbook.addWorksheet("Executive Summary");
-      
+
       // Add data to the sheet
       executiveSummaryData.forEach((row, rowIndex) => {
         row.forEach((cell, colIndex) => {
           const cellRef = executiveSheet.getCell(rowIndex + 1, colIndex + 1);
           cellRef.value = cell;
-          
+
           // Style header rows
           if (rowIndex === 0 || rowIndex === 1) {
             cellRef.font = { bold: true, size: 14 };
-            cellRef.alignment = { horizontal: 'center' };
+            cellRef.alignment = { horizontal: "center" };
           }
         });
       });
-      
+
       // Set column widths
       executiveSheet.getColumn(1).width = 30;
       executiveSheet.getColumn(2).width = 25;
@@ -642,21 +642,21 @@ export function ExportReports({
       ];
 
       const pillarSheet = workbook.addWorksheet("Pillar Analysis");
-      
+
       // Add data to the sheet
       pillarAnalysisData.forEach((row, rowIndex) => {
         row.forEach((cell, colIndex) => {
           const cellRef = pillarSheet.getCell(rowIndex + 1, colIndex + 1);
           cellRef.value = cell;
-          
+
           // Style header rows
           if (rowIndex === 0) {
             cellRef.font = { bold: true, size: 14 };
-            cellRef.alignment = { horizontal: 'center' };
+            cellRef.alignment = { horizontal: "center" };
           }
         });
       });
-      
+
       // Set column widths
       pillarSheet.getColumn(1).width = 40;
       pillarSheet.getColumn(2).width = 12;
@@ -724,21 +724,24 @@ export function ExportReports({
       ];
 
       const recommendationsSheet = workbook.addWorksheet("Recommendations");
-      
+
       // Add data to the sheet
       recommendationsData.forEach((row, rowIndex) => {
         row.forEach((cell, colIndex) => {
-          const cellRef = recommendationsSheet.getCell(rowIndex + 1, colIndex + 1);
+          const cellRef = recommendationsSheet.getCell(
+            rowIndex + 1,
+            colIndex + 1
+          );
           cellRef.value = cell;
-          
+
           // Style header rows
           if (rowIndex === 0) {
             cellRef.font = { bold: true, size: 14 };
-            cellRef.alignment = { horizontal: 'center' };
+            cellRef.alignment = { horizontal: "center" };
           }
         });
       });
-      
+
       // Set column widths
       recommendationsSheet.getColumn(1).width = 12;
       recommendationsSheet.getColumn(2).width = 50;
@@ -776,21 +779,21 @@ export function ExportReports({
       ];
 
       const rawDataSheet = workbook.addWorksheet("Raw Data");
-      
+
       // Add data to the sheet
       rawData.forEach((row, rowIndex) => {
         row.forEach((cell, colIndex) => {
           const cellRef = rawDataSheet.getCell(rowIndex + 1, colIndex + 1);
           cellRef.value = cell;
-          
+
           // Style header rows
           if (rowIndex === 0) {
             cellRef.font = { bold: true, size: 14 };
-            cellRef.alignment = { horizontal: 'center' };
+            cellRef.alignment = { horizontal: "center" };
           }
         });
       });
-      
+
       // Set column widths
       rawDataSheet.getColumn(1).width = 12;
       rawDataSheet.getColumn(2).width = 40;
@@ -806,11 +809,13 @@ export function ExportReports({
 
       // Generate Excel file buffer
       const buffer = await workbook.xlsx.writeBuffer();
-      
+
       // Create blob and download
-      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const blob = new Blob([buffer], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
       const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
+      const link = document.createElement("a");
       link.href = url;
       link.download = fileName;
       document.body.appendChild(link);
@@ -1362,7 +1367,7 @@ export function ExportReports({
                   onClick={() => generatePDFReport("executive")}
                   disabled={isGenerating}
                   variant="outline"
-                  className="flex-1 min-w-[200px] border-blue-200 text-blue-700 hover:bg-blue-50"
+                  className="flex-1 min-w-[200px] border-blue-200 text-blue-700 hover:bg-blue-50 hover:text-blue-700"
                 >
                   <FileText className="w-4 h-4 mr-2" />
                   Executive Summary
@@ -1385,7 +1390,7 @@ export function ExportReports({
                   onClick={exportToCSV}
                   disabled={isExporting}
                   variant="outline"
-                  className="flex-1 min-w-[150px] border-green-200 text-green-700 hover:bg-green-50"
+                  className="flex-1 min-w-[150px] border-green-200 text-green-700 hover:bg-green-50 hover:text-green-700"
                 >
                   <Table className="w-4 h-4 mr-2" />
                   {isExporting ? "Exporting..." : "Export CSV"}

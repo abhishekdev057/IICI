@@ -34,6 +34,9 @@ export async function PUT(
       case 'institution':
         result = await updateInstitution(applicationId, changes, session.user.email)
         break
+      case 'batch':
+        result = await updateBatch(applicationId, changes, session.user.email)
+        break
       default:
         return NextResponse.json({ error: 'Invalid change type' }, { status: 400 })
     }
@@ -188,6 +191,7 @@ async function updateInstitution(applicationId: string, changes: any, userEmail:
       organizationSize: changes.organizationSize || "Small",
       country: changes.country || "India",
       contactEmail: userEmail,
+      yearFounded: changes.yearFounded || new Date().getFullYear(),
       ...changes
     }
   })
@@ -233,4 +237,67 @@ function getMaxScore(indicatorId: string): number {
   // Import from centralized utils
   const { getIndicatorMaxScore } = require('@/lib/application-utils')
   return getIndicatorMaxScore(indicatorId)
+}
+
+// OPTIMIZATION: Batch update function for faster saves
+async function updateBatch(applicationId: string, batchedChanges: any, userEmail: string) {
+  console.log('🚀 Processing batch update:', {
+    applicationId,
+    indicators: batchedChanges.indicators?.length || 0,
+    evidence: batchedChanges.evidence?.length || 0,
+    institution: batchedChanges.institution?.length || 0,
+  })
+
+  const results = {
+    indicators: [] as any[],
+    evidence: [] as any[],
+    institution: [] as any[],
+  }
+
+  // Process indicators in batch
+  if (batchedChanges.indicators?.length > 0) {
+    for (const change of batchedChanges.indicators) {
+      try {
+        const result = await updateIndicator(applicationId, change, userEmail)
+        results.indicators.push(result)
+      } catch (error) {
+        console.error('❌ Error in batch indicator update:', error)
+        results.indicators.push({ error: error.message })
+      }
+    }
+  }
+
+  // Process evidence in batch
+  if (batchedChanges.evidence?.length > 0) {
+    for (const change of batchedChanges.evidence) {
+      try {
+        const result = await updateEvidence(applicationId, change, userEmail)
+        results.evidence.push(result)
+      } catch (error) {
+        console.error('❌ Error in batch evidence update:', error)
+        results.evidence.push({ error: error.message })
+      }
+    }
+  }
+
+  // Process institution in batch
+  if (batchedChanges.institution?.length > 0) {
+    for (const change of batchedChanges.institution) {
+      try {
+        const result = await updateInstitution(applicationId, change, userEmail)
+        results.institution.push(result)
+      } catch (error) {
+        console.error('❌ Error in batch institution update:', error)
+        results.institution.push({ error: error.message })
+      }
+    }
+  }
+
+  console.log('✅ Batch update completed:', {
+    indicators: results.indicators.length,
+    evidence: results.evidence.length,
+    institution: results.institution.length,
+  })
+
+  return results
 }

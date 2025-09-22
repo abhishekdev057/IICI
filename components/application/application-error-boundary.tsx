@@ -4,7 +4,7 @@ import React, { Component, ErrorInfo, ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertTriangle, RefreshCw, Home, Bug } from "lucide-react";
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from "sonner";
 
 interface Props {
   children: ReactNode;
@@ -192,21 +192,16 @@ export class ApplicationErrorBoundary extends Component<Props, State> {
 export function useApplicationErrorHandler() {
   const { toast } = useToast();
 
-  const handleError = React.useCallback(
-    (error: Error, context?: string) => {
-      console.error(
-        `Application error${context ? ` in ${context}` : ""}:`,
-        error
-      );
+  const handleError = React.useCallback((error: Error, context?: string) => {
+    console.error(
+      `Application error${context ? ` in ${context}` : ""}:`,
+      error
+    );
 
-      toast({
-        title: "Application Error",
-        description: "Something went wrong. Please try again.",
-        variant: "destructive",
-      });
-    },
-    [toast]
-  );
+    toast.error("Application Error", {
+      description: "Something went wrong. Please try again.",
+    });
+  }, []);
 
   return { handleError };
 }

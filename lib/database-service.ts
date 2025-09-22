@@ -304,7 +304,7 @@ export class DatabaseService {
     // Convert certification level to database enum format
     const certificationLevel = (scores.certificationLevel as any) === 'Not Certified' ? 'NOT_CERTIFIED' : 
                               (scores.certificationLevel as any) === 'Certified' ? 'CERTIFIED' : 
-                              (scores.certificationLevel as any) === 'Gold' ? 'GOLD' : 'NOT_CERTIFIED'
+                              (scores.certificationLevel as any) === 'Certified' ? 'CERTIFIED' : 'NOT_CERTIFIED'
 
     // Save score audit
     const scoreAudit = await prisma.scoreAudit.create({

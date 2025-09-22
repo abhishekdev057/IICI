@@ -30,7 +30,7 @@ import {
   Plus,
   Edit3,
 } from "lucide-react";
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from "sonner";
 
 interface Indicator {
   id: string;
@@ -136,7 +136,7 @@ export function IndicatorInput({
   const [activeEvidenceType, setActiveEvidenceType] = useState<
     "text" | "link" | "file" | null
   >(null);
-  const { toast } = useToast();
+  // Using Sonner toast directly
 
   // Update local value when prop changes
   useEffect(() => {
@@ -287,10 +287,8 @@ export function IndicatorInput({
         // 10MB limit
         setUploadError("File must be smaller than 10MB");
         setIsUploading(false);
-        toast({
-          title: "File Too Large",
+        toast.error("File Too Large", {
           description: "Please select a file smaller than 10MB",
-          variant: "destructive",
         });
         return;
       }
@@ -318,12 +316,10 @@ export function IndicatorInput({
           `File type not supported. Allowed: ${allowedExtensions.join(", ")}`
         );
         setIsUploading(false);
-        toast({
-          title: "Unsupported File Type",
+        toast.error("Unsupported File Type", {
           description: `Please select a file with one of these extensions: ${allowedExtensions.join(
             ", "
           )}`,
-          variant: "destructive",
         });
         return;
       }
@@ -356,10 +352,8 @@ export function IndicatorInput({
         setIsUploading(false);
         setUploadProgress(100);
 
-        toast({
-          title: "File Uploaded Successfully!",
+        toast.success("File Uploaded Successfully!", {
           description: `${file.name} has been uploaded as evidence for ${indicator.id}.`,
-          variant: "default",
         });
 
         // Reset progress after a delay
@@ -369,16 +363,14 @@ export function IndicatorInput({
       reader.onerror = () => {
         setUploadError("Failed to read file. Please try again.");
         setIsUploading(false);
-        toast({
-          title: "Upload Failed",
+        toast.error("Upload Failed", {
           description: "Failed to read file. Please try again.",
-          variant: "destructive",
         });
       };
 
       reader.readAsDataURL(file);
     },
-    [handleEvidenceChange, toast]
+    [handleEvidenceChange]
   );
 
   // Handle drag and drop
@@ -419,10 +411,8 @@ export function IndicatorInput({
           // 10MB limit
           setUploadError("File must be smaller than 10MB");
           setIsUploading(false);
-          toast({
-            title: "File Too Large",
+          toast.error("File Too Large", {
             description: "Please select a file smaller than 10MB",
-            variant: "destructive",
           });
           return;
         }
@@ -450,12 +440,10 @@ export function IndicatorInput({
             `File type not supported. Allowed: ${allowedExtensions.join(", ")}`
           );
           setIsUploading(false);
-          toast({
-            title: "Unsupported File Type",
+          toast.error("Unsupported File Type", {
             description: `Please select a file with one of these extensions: ${allowedExtensions.join(
               ", "
             )}`,
-            variant: "destructive",
           });
           return;
         }
@@ -493,10 +481,8 @@ export function IndicatorInput({
           setIsUploading(false);
           setUploadProgress(100);
 
-          toast({
-            title: "File Uploaded Successfully!",
+          toast.success("File Uploaded Successfully!", {
             description: `${file.name} has been uploaded as evidence for ${indicator.id} via drag & drop.`,
-            variant: "default",
           });
 
           // Reset progress after a delay
@@ -506,17 +492,15 @@ export function IndicatorInput({
         reader.onerror = () => {
           setUploadError("Failed to read file. Please try again.");
           setIsUploading(false);
-          toast({
-            title: "Upload Failed",
+          toast.error("Upload Failed", {
             description: "Failed to read file. Please try again.",
-            variant: "destructive",
           });
         };
 
         reader.readAsDataURL(file);
       }
     },
-    [handleEvidenceChange, toast]
+    [handleEvidenceChange]
   );
 
   // Get input type based on measurement unit
@@ -827,7 +811,6 @@ export function IndicatorInput({
                 placeholder="Describe your evidence..."
                 rows={3}
                 className="w-full"
-                style={{ display: "none" }}
               />
             </div>
           )}

@@ -1,16 +1,22 @@
-"use client"
+"use client";
 
-import { useState, useEffect, useRef, memo, useCallback } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { useApplication } from "@/contexts/application-context"
-import { Building2, Upload, X, Image } from "lucide-react"
+import { useState, useEffect, useRef, memo, useCallback } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useApplication } from "@/contexts/application-context";
+import { Building2, Upload, X, Image } from "lucide-react";
 
 const InstitutionSetup = memo(function InstitutionSetup() {
-  const { state, updateInstitution } = useApplication()
+  const { state, updateInstitution } = useApplication();
   const [formData, setFormData] = useState({
     name: "",
     industry: "",
@@ -19,12 +25,13 @@ const InstitutionSetup = memo(function InstitutionSetup() {
     contactEmail: "",
     website: "",
     description: "",
-    logo: ""
-  })
-  const [logoPreview, setLogoPreview] = useState<string | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+    logo: "",
+    yearFounded: "",
+  });
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const application = state.application
+  const application = state.application;
 
   useEffect(() => {
     if (application?.institutionData) {
@@ -36,65 +43,80 @@ const InstitutionSetup = memo(function InstitutionSetup() {
         contactEmail: application.institutionData.contactEmail || "",
         website: application.institutionData.website || "",
         description: application.institutionData.description || "",
-        logo: application.institutionData.logo || ""
-      })
+        logo: application.institutionData.logo || "",
+        yearFounded: application.institutionData.yearFounded?.toString() || "",
+      });
       // Set logo preview if logo exists
       if (application.institutionData.logo) {
-        setLogoPreview(application.institutionData.logo)
+        setLogoPreview(application.institutionData.logo);
       }
     }
-  }, [application?.institutionData])
+  }, [application?.institutionData]);
 
   const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }))
-    updateInstitution({ [field]: value })
-  }
+    setFormData((prev) => ({ ...prev, [field]: value }));
+
+    // Convert yearFounded to number if it's a valid year
+    if (field === "yearFounded") {
+      const yearValue = value.trim() === "" ? 0 : parseInt(value, 10);
+      updateInstitution({ [field]: yearValue });
+    } else {
+      updateInstitution({ [field]: value });
+    }
+  };
 
   const handleLogoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
+    const file = event.target.files?.[0];
     if (file) {
       // Validate file type
-      if (!file.type.startsWith('image/')) {
-        alert('Please select an image file')
-        return
+      if (!file.type.startsWith("image/")) {
+        alert("Please select an image file");
+        return;
       }
-      
+
       // Validate file size (max 5MB)
       if (file.size > 5 * 1024 * 1024) {
-        alert('File size must be less than 5MB')
-        return
+        alert("File size must be less than 5MB");
+        return;
       }
 
-      const reader = new FileReader()
+      const reader = new FileReader();
       reader.onload = (e) => {
-        const result = e.target?.result as string
-        setLogoPreview(result)
-        setFormData(prev => ({ ...prev, logo: result }))
-        updateInstitution({ logo: result })
-      }
-      reader.readAsDataURL(file)
+        const result = e.target?.result as string;
+        setLogoPreview(result);
+        setFormData((prev) => ({ ...prev, logo: result }));
+        updateInstitution({ logo: result });
+      };
+      reader.readAsDataURL(file);
     }
-  }
+  };
 
   const removeLogo = () => {
-    setLogoPreview(null)
-    setFormData(prev => ({ ...prev, logo: "" }))
-    updateInstitution({ logo: "" })
+    setLogoPreview(null);
+    setFormData((prev) => ({ ...prev, logo: "" }));
+    updateInstitution({ logo: "" });
     if (fileInputRef.current) {
-      fileInputRef.current.value = ""
+      fileInputRef.current.value = "";
     }
-  }
+  };
 
   const isFormValid = () => {
+    const yearFounded = parseInt(formData.yearFounded, 10);
+    const currentYear = new Date().getFullYear();
+
     return (
       formData.name.trim().length >= 2 &&
       formData.industry.trim() &&
+      formData.yearFounded.trim() &&
+      !isNaN(yearFounded) &&
+      yearFounded >= 1800 &&
+      yearFounded <= currentYear &&
       formData.organizationSize.trim() &&
       formData.country.trim() &&
       formData.contactEmail.trim() &&
       /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.contactEmail)
-    )
-  }
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -120,7 +142,10 @@ const InstitutionSetup = memo(function InstitutionSetup() {
 
             <div className="space-y-2">
               <Label htmlFor="industry">Industry *</Label>
-              <Select value={formData.industry} onValueChange={(value) => handleInputChange("industry", value)}>
+              <Select
+                value={formData.industry}
+                onValueChange={(value) => handleInputChange("industry", value)}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Select your industry" />
                 </SelectTrigger>
@@ -140,18 +165,49 @@ const InstitutionSetup = memo(function InstitutionSetup() {
             </div>
 
             <div className="space-y-2">
+              <Label htmlFor="yearFounded">Year Founded *</Label>
+              <Input
+                id="yearFounded"
+                type="number"
+                value={formData.yearFounded}
+                onChange={(e) =>
+                  handleInputChange("yearFounded", e.target.value)
+                }
+                placeholder="e.g., 2020"
+                min="1800"
+                max={new Date().getFullYear()}
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="organizationSize">Organization Size *</Label>
-              <Select value={formData.organizationSize} onValueChange={(value) => handleInputChange("organizationSize", value)}>
+              <Select
+                value={formData.organizationSize}
+                onValueChange={(value) =>
+                  handleInputChange("organizationSize", value)
+                }
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Select organization size" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="1-10 employees">1-10 employees</SelectItem>
-                  <SelectItem value="11-50 employees">11-50 employees</SelectItem>
-                  <SelectItem value="51-200 employees">51-200 employees</SelectItem>
-                  <SelectItem value="201-1000 employees">201-1000 employees</SelectItem>
-                  <SelectItem value="1001-5000 employees">1001-5000 employees</SelectItem>
-                  <SelectItem value="5000+ employees">5000+ employees</SelectItem>
+                  <SelectItem value="11-50 employees">
+                    11-50 employees
+                  </SelectItem>
+                  <SelectItem value="51-200 employees">
+                    51-200 employees
+                  </SelectItem>
+                  <SelectItem value="201-1000 employees">
+                    201-1000 employees
+                  </SelectItem>
+                  <SelectItem value="1001-5000 employees">
+                    1001-5000 employees
+                  </SelectItem>
+                  <SelectItem value="5000+ employees">
+                    5000+ employees
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -173,7 +229,9 @@ const InstitutionSetup = memo(function InstitutionSetup() {
                 id="contactEmail"
                 type="email"
                 value={formData.contactEmail}
-                onChange={(e) => handleInputChange("contactEmail", e.target.value)}
+                onChange={(e) =>
+                  handleInputChange("contactEmail", e.target.value)
+                }
                 placeholder="Enter contact email"
                 required
               />
@@ -217,7 +275,7 @@ const InstitutionSetup = memo(function InstitutionSetup() {
                   <Image className="w-8 h-8 text-muted-foreground/50" />
                 </div>
               )}
-              
+
               <div className="flex-1">
                 <input
                   ref={fileInputRef}
@@ -261,7 +319,7 @@ const InstitutionSetup = memo(function InstitutionSetup() {
         </CardContent>
       </Card>
     </div>
-  )
-})
+  );
+});
 
-export { InstitutionSetup }
+export { InstitutionSetup };

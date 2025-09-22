@@ -11,28 +11,35 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email }
-    })
-
-    if (!user) {
+    // OPTIMIZED: Get user ID directly from session to avoid extra query
+    const userId = session.user.id
+    
+    if (!userId) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
-    // Get user's notifications, ordered by most recent first
-    const notifications = await prisma.notification.findMany({
-      where: { userId: user.id },
-      orderBy: { createdAt: 'desc' },
-      take: 20 // Limit to last 20 notifications
-    })
-
-    // Count unread notifications
-    const unreadCount = await prisma.notification.count({
-      where: { 
-        userId: user.id,
-        isRead: false
-      }
-    })
+    // OPTIMIZED: Use Promise.all to fetch notifications and count in parallel
+    const [notifications, unreadCount] = await Promise.all([
+      prisma.notification.findMany({
+        where: { userId },
+        select: {
+          id: true,
+          title: true,
+          message: true,
+          type: true,
+          isRead: true,
+          createdAt: true
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 10 // Reduced from 20 to 10 for faster loading
+      }),
+      prisma.notification.count({
+        where: { 
+          userId,
+          isRead: false
+        }
+      })
+    ])
 
     return NextResponse.json({
       success: true,
@@ -59,11 +66,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email }
-    })
-
-    if (!user) {
+    // OPTIMIZED: Get user ID directly from session to avoid extra query
+    const userId = session.user.id
+    
+    if (!userId) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
@@ -77,7 +83,7 @@ export async function POST(request: NextRequest) {
     await prisma.notification.updateMany({
       where: {
         id: { in: notificationIds },
-        userId: user.id
+        userId: userId
       },
       data: {
         isRead: true,

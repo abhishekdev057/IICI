@@ -283,6 +283,7 @@ export async function PUT(
             organizationSize: institutionData.organizationSize || "Small",
             country: institutionData.country || "India",
             contactEmail: institutionData.contactEmail || "",
+            yearFounded: institutionData.yearFounded || new Date().getFullYear(),
             ...institutionData
           },
           update: institutionData
@@ -290,7 +291,8 @@ export async function PUT(
       }
 
       // Save indicator responses and evidence if provided
-      if (indicatorResponses && Array.isArray(indicatorResponses)) {
+      // OPTIMIZATION: Skip heavy processing for status-only updates
+      if (indicatorResponses && Array.isArray(indicatorResponses) && indicatorResponses.length > 0) {
         console.log('Processing indicator responses:', indicatorResponses.length)
         
         // Filter valid responses with better validation
@@ -499,8 +501,8 @@ export async function PUT(
       console.log('Transaction completed successfully')
       return updatedApplication
     }, {
-      timeout: 30000, // Reduced to 30 seconds for better reliability
-      maxWait: 10000, // Reduced to 10 seconds max wait
+      timeout: 60000, // Increased to 60 seconds for submission operations
+      maxWait: 15000, // Increased to 15 seconds max wait
       isolationLevel: 'ReadCommitted', // Better performance
     })
     

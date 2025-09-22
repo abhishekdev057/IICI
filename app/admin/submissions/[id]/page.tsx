@@ -27,7 +27,10 @@ export default function AdminSubmissionDetailPage() {
       router.push("/auth?callbackUrl=/admin");
       return;
     }
-    if (!session.user || (session.user.role !== "ADMIN" && session.user.role !== "SUPER_ADMIN")) {
+    if (
+      !session.user ||
+      (session.user.role !== "ADMIN" && session.user.role !== "SUPER_ADMIN")
+    ) {
       router.push("/");
       return;
     }
@@ -47,7 +50,14 @@ export default function AdminSubmissionDetailPage() {
     if (id) fetchApp();
   }, [id, session, status, router]);
 
-  const updateStatus = async (status: "UNDER_REVIEW" | "APPROVED" | "REJECTED" | "PENDING_EVIDENCE") => {
+  const updateStatus = async (
+    status:
+      | "UNDER_REVIEW"
+      | "APPROVED"
+      | "REJECTED"
+      | "RESUBMISSION_REQUIRED"
+      | "PENDING_EVIDENCE"
+  ) => {
     try {
       setSaving(true);
       setError(null);
@@ -58,7 +68,11 @@ export default function AdminSubmissionDetailPage() {
       });
       if (!res.ok) throw new Error("Failed to update status");
       const json = await res.json();
-      setApp((prev: any) => ({ ...(prev || {}), status: json.data?.status, reviewedAt: json.data?.reviewedAt }));
+      setApp((prev: any) => ({
+        ...(prev || {}),
+        status: json.data?.status,
+        reviewedAt: json.data?.reviewedAt,
+      }));
       if (status === "APPROVED") setMessage("");
     } catch (e: any) {
       setError(e.message || "Failed to update status");
@@ -82,7 +96,11 @@ export default function AdminSubmissionDetailPage() {
     return (
       <div className="min-h-screen bg-background p-6">
         <div className="max-w-5xl mx-auto">
-          <Button variant="outline" className="mb-4" onClick={() => router.push("/admin")}>
+          <Button
+            variant="outline"
+            className="mb-4"
+            onClick={() => router.push("/admin")}
+          >
             <ArrowLeft className="w-4 h-4 mr-2" /> Back to Admin
           </Button>
           <Card className="border-destructive">
@@ -118,12 +136,36 @@ export default function AdminSubmissionDetailPage() {
             <CardTitle>Institution</CardTitle>
           </CardHeader>
           <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div><span className="text-muted-foreground text-sm">Name</span><div className="font-medium">{institution.name || '-'}</div></div>
-            <div><span className="text-muted-foreground text-sm">Industry</span><div className="font-medium">{institution.industry || '-'}</div></div>
-            <div><span className="text-muted-foreground text-sm">Size</span><div className="font-medium">{institution.organizationSize || '-'}</div></div>
-            <div><span className="text-muted-foreground text-sm">Country</span><div className="font-medium">{institution.country || '-'}</div></div>
-            <div><span className="text-muted-foreground text-sm">Email</span><div className="font-medium">{institution.contactEmail || '-'}</div></div>
-            {institution.website && (<div><span className="text-muted-foreground text-sm">Website</span><div className="font-medium">{institution.website}</div></div>)}
+            <div>
+              <span className="text-muted-foreground text-sm">Name</span>
+              <div className="font-medium">{institution.name || "-"}</div>
+            </div>
+            <div>
+              <span className="text-muted-foreground text-sm">Industry</span>
+              <div className="font-medium">{institution.industry || "-"}</div>
+            </div>
+            <div>
+              <span className="text-muted-foreground text-sm">Size</span>
+              <div className="font-medium">
+                {institution.organizationSize || "-"}
+              </div>
+            </div>
+            <div>
+              <span className="text-muted-foreground text-sm">Country</span>
+              <div className="font-medium">{institution.country || "-"}</div>
+            </div>
+            <div>
+              <span className="text-muted-foreground text-sm">Email</span>
+              <div className="font-medium">
+                {institution.contactEmail || "-"}
+              </div>
+            </div>
+            {institution.website && (
+              <div>
+                <span className="text-muted-foreground text-sm">Website</span>
+                <div className="font-medium">{institution.website}</div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -133,7 +175,7 @@ export default function AdminSubmissionDetailPage() {
             <CardTitle>Pillars</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {[1,2,3,4,5,6].map((p) => {
+            {[1, 2, 3, 4, 5, 6].map((p) => {
               const pk = `pillar_${p}`;
               const pdata = pillarData[pk] || {};
               const indicators = pdata.indicators || {};
@@ -141,12 +183,16 @@ export default function AdminSubmissionDetailPage() {
                 <div key={pk} className="border rounded p-3">
                   <div className="font-semibold mb-2">Pillar {p}</div>
                   {Object.keys(indicators).length === 0 ? (
-                    <div className="text-sm text-muted-foreground">No responses</div>
+                    <div className="text-sm text-muted-foreground">
+                      No responses
+                    </div>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       {Object.entries(indicators).map(([iid, val]: any) => (
                         <div key={iid} className="text-sm">
-                          <div className="text-muted-foreground">Indicator {iid}</div>
+                          <div className="text-muted-foreground">
+                            Indicator {iid}
+                          </div>
                           <div className="font-medium">{String(val)}</div>
                         </div>
                       ))}
@@ -176,9 +222,33 @@ export default function AdminSubmissionDetailPage() {
               onChange={(e) => setMessage(e.target.value)}
             />
             <div className="flex flex-wrap gap-2">
-              <Button variant="outline" disabled={saving} onClick={() => updateStatus("PENDING_EVIDENCE")}>Request Evidence</Button>
-              <Button variant="destructive" disabled={saving} onClick={() => updateStatus("REJECTED")}>Reject</Button>
-              <Button className="bg-green-600 hover:bg-green-700" disabled={saving} onClick={() => updateStatus("APPROVED")}>
+              <Button
+                variant="outline"
+                disabled={saving}
+                onClick={() => updateStatus("PENDING_EVIDENCE")}
+              >
+                Request Evidence
+              </Button>
+              <Button
+                variant="outline"
+                className="bg-orange-100 text-orange-800 hover:bg-orange-200"
+                disabled={saving}
+                onClick={() => updateStatus("RESUBMISSION_REQUIRED")}
+              >
+                Request Resubmission
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={saving}
+                onClick={() => updateStatus("REJECTED")}
+              >
+                Reject
+              </Button>
+              <Button
+                className="bg-green-600 hover:bg-green-700"
+                disabled={saving}
+                onClick={() => updateStatus("APPROVED")}
+              >
                 <CheckCircle className="w-4 h-4 mr-1" /> Approve
               </Button>
             </div>
@@ -186,11 +256,11 @@ export default function AdminSubmissionDetailPage() {
         </Card>
 
         <div className="flex justify-end">
-          <Button variant="outline" onClick={() => router.push("/admin")}>Back to Admin</Button>
+          <Button variant="outline" onClick={() => router.push("/admin")}>
+            Back to Admin
+          </Button>
         </div>
       </div>
     </div>
   );
 }
-
-

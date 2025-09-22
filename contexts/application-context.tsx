@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { useSession } from "next-auth/react";
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from "sonner";
 import { ScoringEngine } from "@/lib/scoring-engine";
 import { PILLAR_STRUCTURE } from "@/lib/pillar-structure";
 
@@ -48,7 +48,7 @@ function debounce<T extends (...args: any[]) => any>(
 export interface InstitutionData {
   name: string;
   logo?: string;
-  yearFounded?: number;
+  yearFounded: number;
   industry: string;
   organizationSize: string;
   country: string;
@@ -125,6 +125,11 @@ interface ApplicationContextType {
   submitApplication: () => Promise<void>;
   refreshApplicationData: () => Promise<void>;
   debugDataState: () => void;
+
+  // Progressive loading
+  loadStepData: (step: number) => Promise<void>;
+  loadedSteps: Set<number>;
+  isLoadingStep: number | null;
 
   // Data updates
   updateInstitution: (data: Partial<InstitutionData>) => void;
@@ -325,7 +330,7 @@ const getNextIncompleteStepHelper = (application: ApplicationData): number => {
 // Application Provider
 export function ApplicationProvider({ children }: { children: ReactNode }) {
   const { data: session } = useSession();
-  const { toast } = useToast();
+  // Using Sonner toast directly
 
   // State
   const [state, setState] = useState<ApplicationState>({
@@ -841,6 +846,70 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
     [session?.user?.email, state.isLoading]
   );
 
+  // Progressive loading state
+  const [loadedSteps, setLoadedSteps] = useState<Set<number>>(new Set());
+  const [isLoadingStep, setIsLoadingStep] = useState<number | null>(null);
+
+  // Load specific step data progressively
+  const loadStepData = useCallback(
+    async (step: number) => {
+      if (
+        !state.application ||
+        loadedSteps.has(step) ||
+        isLoadingStep === step
+      ) {
+        return;
+      }
+
+      console.log(`🔄 Loading step ${step} data...`);
+      setIsLoadingStep(step);
+
+      try {
+        const response = await fetch(
+          `/api/applications/enhanced/${state.application.id}/step/${step}`
+        );
+
+        if (!response.ok) {
+          throw new Error(`Failed to load step ${step} data`);
+        }
+
+        const responseData = await response.json();
+        const stepData = responseData.data;
+
+        // Merge step data into application
+        setState((prev) => {
+          if (!prev.application) return prev;
+
+          const updatedApplication = { ...prev.application };
+
+          if (step === 0 && stepData.institutionData) {
+            updatedApplication.institutionData = stepData.institutionData;
+          } else if (stepData.pillarData) {
+            updatedApplication.pillarData = {
+              ...updatedApplication.pillarData,
+              ...stepData.pillarData,
+            };
+          }
+
+          return {
+            ...prev,
+            application: updatedApplication,
+          };
+        });
+
+        setLoadedSteps((prev) => new Set([...prev, step]));
+        console.log(
+          `✅ Step ${step} data loaded in ${responseData.loadTime}ms`
+        );
+      } catch (error: any) {
+        console.error(`❌ Error loading step ${step}:`, error);
+      } finally {
+        setIsLoadingStep(null);
+      }
+    },
+    [state.application, loadedSteps, isLoadingStep]
+  );
+
   // Debounced save function - ENHANCED with better error handling
   const debouncedSave = useCallback((force = false) => {
     if (saveDebounceRef.current) {
@@ -894,10 +963,8 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
 
       if (!state.isOnline) {
         console.log("❌ Save skipped: Offline");
-        toast({
-          title: "No Internet Connection",
+        toast.error("No Internet Connection", {
           description: "Changes will be saved when connection is restored.",
-          variant: "destructive",
         });
         return;
       }
@@ -1106,8 +1173,7 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
         }));
 
         if (force) {
-          toast({
-            title: "Application Saved",
+          toast.success("Application Saved", {
             description: "Your changes have been saved successfully.",
           });
         } else {
@@ -1162,10 +1228,8 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
 
         // Show error toast for manual saves or critical errors
         if (force || retryCount >= maxRetries) {
-          toast({
-            title: "Save Failed",
+          toast.error("Save Failed", {
             description: errorMessage,
-            variant: "destructive",
             duration: 5000, // Show longer for important errors
           });
         } else {
@@ -1487,60 +1551,50 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
       const currentPendingChanges = new Map(pendingChanges);
       setPendingChanges(new Map());
 
-      // Save each change individually with error handling
-      let allSaved = true;
-      const errors: string[] = [];
+      // OPTIMIZATION: Batch all changes into a single API call for speed
+      const batchedChanges = {
+        indicators: [] as any[],
+        evidence: [] as any[],
+        institution: [] as any[],
+      };
 
+      // Group changes by type
       for (const [changeKey, changeData] of currentPendingChanges) {
-        try {
-          const changeType = changeKey.startsWith("indicator_")
-            ? "indicator"
-            : changeKey.startsWith("evidence_")
-            ? "evidence"
-            : changeKey.startsWith("institution_")
-            ? "institution"
-            : "unknown";
+        const changeType = changeKey.startsWith("indicator_")
+          ? "indicator"
+          : changeKey.startsWith("evidence_")
+          ? "evidence"
+          : changeKey.startsWith("institution_")
+          ? "institution"
+          : "unknown";
 
-          console.log(`🔄 Saving ${changeType}:`, changeData);
-
-          const response = await fetch(
-            `/api/applications/enhanced/${state.application?.id}/partial`,
-            {
-              method: "PUT",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                changeType,
-                changes: changeData,
-              }),
-            }
+        if (changeType !== "unknown") {
+          batchedChanges[changeType as keyof typeof batchedChanges].push(
+            changeData
           );
-
-          if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(
-              errorData.error ||
-                `Failed to save ${changeType}: ${response.status}`
-            );
-          }
-
-          console.log(`✅ Successfully saved ${changeType}`);
-        } catch (error: any) {
-          console.error(`❌ Failed to save ${changeKey}:`, error);
-          errors.push(`${changeKey}: ${error.message}`);
-          allSaved = false;
         }
       }
 
-      if (!allSaved) {
-        console.error("❌ Some changes failed to save:", errors);
-        setState((prev) => ({
-          ...prev,
-          isSaving: false,
-          error: `Failed to save some changes: ${errors.join(", ")}`,
-        }));
-        return false;
+      // Make single API call for all changes
+      const response = await fetch(
+        `/api/applications/enhanced/${state.application?.id}/partial`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            changeType: "batch",
+            changes: batchedChanges,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          errorData.error || `Failed to save changes: ${response.status}`
+        );
       }
 
       // Update last saved state
@@ -1554,7 +1608,7 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
         error: null,
       }));
 
-      console.log("✅ All pending changes saved successfully");
+      console.log("✅ All pending changes saved successfully in batch");
       return true;
     } catch (error: any) {
       console.error("❌ Error saving pending changes:", error);
@@ -1565,16 +1619,14 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
         error: error.message,
       }));
 
-      toast({
-        title: "Save Failed",
+      toast.error("Save Failed", {
         description:
           "Failed to save changes before navigation. Please try again.",
-        variant: "destructive",
       });
 
       return false;
     }
-  }, [pendingChanges, savePartialChanges, toast]);
+  }, [pendingChanges, savePartialChanges]);
 
   // Set current step - ENHANCED with debugging
   const setCurrentStep = useCallback(
@@ -1725,6 +1777,15 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
       // Step 0 (institution setup) is always accessible
       if (step === 0) return true;
 
+      // Check if the target step itself is completed - if so, allow navigation
+      if (step > 0 && step <= 6) {
+        const pillarId = step;
+        const progress = getPillarProgress(pillarId);
+        if (progress.completion >= 100) {
+          return true;
+        }
+      }
+
       // Check if previous steps are completed
       for (let i = 0; i < step; i++) {
         if (i === 0) {
@@ -1833,18 +1894,52 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
     try {
       setState((prev) => ({ ...prev, isSaving: true, error: null }));
 
-      const response = await fetch(
-        `/api/applications/enhanced/${state.application.id}`,
+      // OPTIMIZATION: Save any pending changes before submission
+      if (state.hasUnsavedChanges) {
+        console.log("💾 Saving pending changes before submission...");
+        toast.info("Saving changes...", {
+          description: "Saving your progress before submission",
+        });
+        const saveSuccess = await saveAllPendingChanges();
+        if (!saveSuccess) {
+          throw new Error("Failed to save pending changes before submission");
+        }
+        console.log("✅ Pending changes saved successfully");
+      }
+
+      // Show submission progress
+      toast.info("Submitting application...", {
+        description: "Please wait while we process your submission",
+      });
+
+      // OPTIMIZATION: Use dedicated submission endpoint for faster processing
+      let response = await fetch(
+        `/api/applications/enhanced/${state.application.id}/submit`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            status: "submitted",
-            institutionData: state.application.institutionData,
-            pillarData: state.application.pillarData,
+            // No data needed - just status update
           }),
         }
       );
+
+      // Fallback to original endpoint if optimized endpoint fails
+      if (!response.ok) {
+        console.log(
+          "⚠️ Optimized submission failed, trying fallback endpoint..."
+        );
+        response = await fetch(
+          `/api/applications/enhanced/${state.application.id}`,
+          {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              status: "submitted",
+            }),
+          }
+        );
+      }
 
       if (!response.ok) throw new Error("Failed to submit application");
 
@@ -1860,11 +1955,13 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
         hasUnsavedChanges: false,
       }));
 
-      toast({
-        title: "Application Submitted",
+      toast.success("Application Submitted", {
         description:
           "Your application has been submitted successfully. Redirecting to dashboard...",
       });
+
+      // Set cookie to allow dashboard access
+      document.cookie = "iiici_app_submitted=true; path=/; max-age=86400"; // 24 hours
 
       // Redirect to dashboard after successful submission
       setTimeout(() => {
@@ -2065,6 +2162,10 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
     saveAllPendingChanges, // Add save all pending changes function
     validateFromDatabase, // Add database validation function
     validateApplicationData, // Add enhanced data validation function
+    // Progressive loading
+    loadStepData,
+    loadedSteps,
+    isLoadingStep,
   };
 
   return (

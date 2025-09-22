@@ -124,6 +124,7 @@ export async function PUT(
           organizationSize: institutionData.organizationSize || "Small",
           country: institutionData.country || "India",
           contactEmail: institutionData.contactEmail || "",
+          yearFounded: institutionData.yearFounded || new Date().getFullYear(),
           ...institutionData
         },
         update: institutionData
@@ -317,7 +318,7 @@ export async function PUT(
       if (scores.certificationLevel) {
         switch (scores.certificationLevel) {
           case 'Gold':
-            certificationLevel = 'GOLD'
+            certificationLevel = 'CERTIFIED'
             break
           case 'Certified':
             certificationLevel = 'CERTIFIED'

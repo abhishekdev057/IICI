@@ -76,7 +76,7 @@ model InstitutionData {
   userId           String        @unique
   name             String
   logo             String?
-  yearFounded      Int?
+  yearFounded      Int
   industry         String
   organizationSize String
   country          String
@@ -242,6 +242,7 @@ enum ApplicationStatus {
   UNDER_REVIEW
   APPROVED
   REJECTED
+  RESUBMISSION_REQUIRED
 }
 
 enum EvidenceType {
@@ -260,7 +261,6 @@ enum NotificationType {
 }
 
 enum CertificationLevel {
-  GOLD
   CERTIFIED
   NOT_CERTIFIED
 }

@@ -131,6 +131,7 @@ export async function POST(request: NextRequest) {
           organizationSize: "",
           country: "",
           contactEmail: session.user.email || "",
+          yearFounded: new Date().getFullYear(), // Default to current year
         }
       })
     } catch (institutionError) {

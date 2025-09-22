@@ -6,6 +6,7 @@ import { useEffect, useState, useCallback } from "react";
 import { CleanFormWizard } from "@/components/application/clean-form-wizard";
 import { ApplicationProvider } from "@/contexts/application-context";
 import { ApplicationErrorBoundary } from "@/components/application/application-error-boundary";
+import { ApplicationStatusScreen } from "@/components/application/application-status-screen";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -19,15 +20,62 @@ import {
 } from "lucide-react";
 import { Navigation } from "@/components/layout/navigation";
 import { Footer } from "@/components/layout/footer";
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from "sonner";
 
 export default function ApplicationPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const { toast } = useToast();
+  // Using Sonner toast directly
   const [isRedirecting, setIsRedirecting] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const [hasError, setHasError] = useState(false);
+  const [applicationStatus, setApplicationStatus] = useState<any>(null);
+  const [isLoadingStatus, setIsLoadingStatus] = useState(true);
+
+  // Check application status
+  const checkApplicationStatus = useCallback(async () => {
+    if (!session?.user?.id) return;
+
+    try {
+      setIsLoadingStatus(true);
+      const response = await fetch("/api/applications/enhanced");
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.data) {
+          const app = data.data;
+          // Check if application needs status screen
+          if (
+            app.status &&
+            [
+              "SUBMITTED",
+              "UNDER_REVIEW",
+              "APPROVED",
+              "REJECTED",
+              "RESUBMISSION_REQUIRED",
+            ].includes(app.status)
+          ) {
+            // Get detailed status with review comments
+            const statusResponse = await fetch(
+              `/api/applications/${app.id}/status`
+            );
+            if (statusResponse.ok) {
+              const statusData = await statusResponse.json();
+              if (statusData.success) {
+                setApplicationStatus(statusData.data);
+                return;
+              }
+            }
+          }
+        }
+      }
+      setApplicationStatus(null);
+    } catch (error) {
+      console.error("Error checking application status:", error);
+      setApplicationStatus(null);
+    } finally {
+      setIsLoadingStatus(false);
+    }
+  }, [session?.user?.id]);
 
   // Enhanced debugging with error tracking
   useEffect(() => {
@@ -41,15 +89,57 @@ export default function ApplicationPage() {
     );
   }, [session, status, retryCount]);
 
+  // Check application status when session is available
+  useEffect(() => {
+    if (status === "authenticated" && session?.user) {
+      checkApplicationStatus();
+    }
+  }, [status, session, checkApplicationStatus]);
+
+  // Also check status when page becomes visible (for redirects after submission)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (
+        document.visibilityState === "visible" &&
+        status === "authenticated" &&
+        session?.user
+      ) {
+        checkApplicationStatus();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () =>
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [status, session, checkApplicationStatus]);
+
+  // Check for submission redirect (URL parameter)
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (
+      urlParams.get("submitted") === "true" &&
+      status === "authenticated" &&
+      session?.user
+    ) {
+      // Clear the parameter and refresh status
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.delete("submitted");
+      window.history.replaceState({}, "", newUrl.toString());
+
+      // Refresh status after a short delay to ensure backend is updated
+      setTimeout(() => {
+        checkApplicationStatus();
+      }, 1000);
+    }
+  }, [status, session, checkApplicationStatus]);
+
   // Enhanced session handling with retry logic
   const handleAuthRedirect = useCallback(() => {
     if (retryCount >= 3) {
       setHasError(true);
-      toast({
-        title: "Authentication Error",
+      toast.error("Authentication Error", {
         description:
           "Unable to authenticate. Please refresh the page and try again.",
-        variant: "destructive",
       });
       return;
     }
@@ -232,6 +322,76 @@ export default function ApplicationPage() {
           </Card>
         </div>
         <Footer variant="minimal" />
+      </div>
+    );
+  }
+
+  // Auto-redirect to dashboard for submitted applications
+  useEffect(() => {
+    if (applicationStatus && !isLoadingStatus) {
+      const status = applicationStatus.application.status;
+      if (
+        status === "SUBMITTED" ||
+        status === "UNDER_REVIEW" ||
+        status === "APPROVED"
+      ) {
+        // Set cookie to ensure dashboard access
+        document.cookie = "iiici_app_submitted=true; path=/; max-age=86400"; // 24 hours
+
+        // Redirect to dashboard
+        router.push("/dashboard");
+      }
+    }
+  }, [applicationStatus, isLoadingStatus, router]);
+
+  // Show status screen if application has a status that requires it
+  if (applicationStatus && !isLoadingStatus) {
+    // Auto-redirect to dashboard for submitted applications
+    if (
+      applicationStatus.application.status === "SUBMITTED" ||
+      applicationStatus.application.status === "UNDER_REVIEW" ||
+      applicationStatus.application.status === "APPROVED"
+    ) {
+      // Show loading state while redirecting
+      return (
+        <div className="min-h-screen bg-background">
+          <Navigation variant="dashboard" title="Redirecting..." />
+          <div className="flex items-center justify-center min-h-[80vh]">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+              <p className="text-muted-foreground">
+                Your application has been submitted. Redirecting to dashboard...
+              </p>
+            </div>
+          </div>
+          <Footer variant="minimal" />
+        </div>
+      );
+    }
+
+    // For other statuses (REJECTED, RESUBMISSION_REQUIRED, etc.), show status screen
+    return (
+      <div className="min-h-screen bg-background">
+        <Navigation variant="dashboard" title="Application Status" />
+        <ApplicationStatusScreen
+          application={applicationStatus.application}
+          reviewComments={applicationStatus.reviewComments}
+        />
+        <Footer variant="minimal" />
+      </div>
+    );
+  }
+
+  // Show loading state while checking status
+  if (isLoadingStatus && status === "authenticated") {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">
+            Checking application status...
+          </p>
+        </div>
       </div>
     );
   }

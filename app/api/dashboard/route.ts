@@ -33,13 +33,22 @@ export async function GET(request: NextRequest) {
     const application = await prisma.application.findFirst({
       where: { userId },
       orderBy: { updatedAt: 'desc' },
-      include: {
+      select: {
+        id: true,
+        status: true,
+        submittedAt: true,
+        updatedAt: true,
         institutionData: true,
         indicatorResponses: {
-          include: {
+          select: {
+            indicatorId: true,
+            pillarId: true,
+            rawValue: true,
+            normalizedScore: true,
+            measurementUnit: true,
+            hasEvidence: true,
             evidence: {
               select: {
-                id: true,
                 type: true,
                 fileName: true,
                 url: true,
@@ -49,6 +58,11 @@ export async function GET(request: NextRequest) {
           }
         },
         scoreAudits: {
+          select: {
+            id: true,
+            calculatedAt: true,
+            scoreData: true
+          },
           orderBy: { calculatedAt: 'desc' },
           take: 1 // Only get the latest score audit
         }
@@ -59,9 +73,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'No application found' }, { status: 404 })
     }
 
-    // Process indicator responses into pillar structure
+    // OPTIMIZED: Process indicator responses into pillar structure
     const pillarData: any = {}
     const indicatorDefinitions = getIndicatorDefinitions()
+
+    // OPTIMIZATION: Use Map for faster lookups
+    const indicatorDefMap = new Map(Object.entries(indicatorDefinitions))
 
     application.indicatorResponses.forEach(response => {
       const pillarId = response.pillarId
@@ -81,8 +98,8 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      // Get indicator definition
-      const indicatorDef = (indicatorDefinitions as any)[response.indicatorId] || {
+      // OPTIMIZATION: Use Map lookup instead of object access
+      const indicatorDef = indicatorDefMap.get(response.indicatorId) || {
         shortName: response.indicatorId,
         description: 'Assessment indicator',
         measurementUnit: response.measurementUnit
@@ -91,7 +108,7 @@ export async function GET(request: NextRequest) {
       // Add indicator data
       pillarData[pillarKey].indicators[response.indicatorId] = response.rawValue
       
-      // Add evidence data
+      // OPTIMIZATION: Only process evidence if it exists
       if (response.evidence && response.evidence.length > 0) {
         pillarData[pillarKey].evidence[response.indicatorId] = {
           type: 'mixed',
@@ -146,7 +163,7 @@ export async function GET(request: NextRequest) {
 
     const overallScore = pillarCount > 0 ? Math.min(totalScore / pillarCount, 100) : 0 // Cap at 100%
           let certificationLevel = "NOT_CERTIFIED"
-      if (overallScore >= 80) certificationLevel = "GOLD"
+      if (overallScore >= 80) certificationLevel = "CERTIFIED"
       else if (overallScore >= 60) certificationLevel = "CERTIFIED"
 
     // Prepare dashboard data
@@ -194,7 +211,7 @@ export async function GET(request: NextRequest) {
       // Determine certification level based on score
       let certificationLevel = "NOT_CERTIFIED"
       if (overallScore >= 80) {
-        certificationLevel = "GOLD"
+        certificationLevel = "CERTIFIED"
       } else if (overallScore >= 60) {
         certificationLevel = "CERTIFIED"
       }
@@ -227,7 +244,7 @@ export async function GET(request: NextRequest) {
 }
 
 // Helper function to get indicator definitions
-function getIndicatorDefinitions() {
+export function getIndicatorDefinitions() {
   return {
     // Pillar 1 indicators
     "1.1.1": {

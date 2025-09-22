@@ -8,7 +8,8 @@ import "./globals.css";
 
 import { AuthSessionProvider } from "@/components/providers/session-provider";
 import { ErrorBoundary } from "@/components/error-boundary";
-import { Toaster } from "@/components/ui/toaster";
+import { Toaster } from "@/components/ui/sonner";
+import { SessionMonitor } from "@/components/auth/session-monitor";
 
 const playfairDisplay = Playfair_Display({
   subsets: ["latin"],
@@ -57,6 +58,7 @@ export default function RootLayout({
       <body className="font-sans">
         <ErrorBoundary>
           <AuthSessionProvider>
+            <SessionMonitor />
             {children}
             <Toaster />
           </AuthSessionProvider>

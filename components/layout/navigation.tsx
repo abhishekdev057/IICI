@@ -33,17 +33,23 @@ export function Navigation({
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { data: session, status } = useSession();
   const role = session?.user?.role as string | undefined;
-  const isSuperAdmin = role === 'SUPER_ADMIN';
-  const isAdmin = role === 'ADMIN';
+  const isSuperAdmin = role === "SUPER_ADMIN";
+  const isAdmin = role === "ADMIN";
   // Only show user-side (Dashboard/Application) for regular USERs
-  const canSeeUserSide = role === 'USER';
+  const canSeeUserSide = role === "USER";
   // Dashboard available only after submission
-  const applicationStatus = (session?.user as any)?.applicationStatus as string | undefined;
-  const canSeeDashboard = (applicationStatus || '').toLowerCase() === 'submitted';
+  const applicationStatus = (session?.user as any)?.applicationStatus as
+    | string
+    | undefined;
+  const canSeeDashboard =
+    (applicationStatus || "").toLowerCase() === "submitted";
   const isSubmitted = canSeeDashboard;
 
   const getLogo = () => (
-    <Link href="/" className="flex items-center space-x-2 hover:opacity-80 transition-opacity cursor-pointer">
+    <Link
+      href="/"
+      className="flex items-center space-x-2 hover:opacity-80 transition-opacity cursor-pointer"
+    >
       <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
         <span className="text-primary-foreground font-bold text-sm">II</span>
       </div>
@@ -123,7 +129,8 @@ export function Navigation({
                       </DropdownMenuItem>
                     )}
 
-                    {(session.user?.role === 'ADMIN' || session.user?.role === 'SUPER_ADMIN') && (
+                    {(session.user?.role === "ADMIN" ||
+                      session.user?.role === "SUPER_ADMIN") && (
                       <DropdownMenuItem asChild>
                         <Link href="/admin">Admin Panel</Link>
                       </DropdownMenuItem>
@@ -203,7 +210,18 @@ export function Navigation({
 
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
-                    onClick={() => signOut({ callbackUrl: "/" })}
+                    onClick={async () => {
+                      try {
+                        // Call our custom logout API to clear all cookies
+                        await fetch("/api/auth/logout", { method: "POST" });
+                        // Then use NextAuth signOut
+                        await signOut({ callbackUrl: "/" });
+                      } catch (error) {
+                        console.error("Logout error:", error);
+                        // Fallback to regular signOut
+                        await signOut({ callbackUrl: "/" });
+                      }
+                    }}
                   >
                     <LogOut className="mr-2 h-4 w-4" />
                     <span>Log out</span>

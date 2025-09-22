@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useCallback, useEffect, memo } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -44,7 +45,7 @@ import {
   validateEvidence,
 } from "@/lib/application-utils";
 
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from "sonner";
 import { InstitutionSetup } from "./institution-setup";
 import { ScorePreview } from "./score-preview";
 import { PillarOneFormOrganized } from "./pillar-forms/pillar-one-form-organized";
@@ -108,6 +109,7 @@ const formSteps = [
 ];
 
 const CleanFormWizard = memo(function CleanFormWizard() {
+  const router = useRouter();
   const {
     state,
     saveApplication,
@@ -123,9 +125,12 @@ const CleanFormWizard = memo(function CleanFormWizard() {
     saveAllPendingChanges,
     validateFromDatabase,
     validateApplicationData,
+    loadStepData,
+    loadedSteps,
+    isLoadingStep,
   } = useApplication();
 
-  const { toast } = useToast();
+  // Using Sonner toast directly
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isNavigating, setIsNavigating] = useState(false);
@@ -215,23 +220,26 @@ const CleanFormWizard = memo(function CleanFormWizard() {
     return getOverallProgress();
   }, [application, getOverallProgress]);
 
-  // Handle step navigation
+  // Handle step navigation with progressive loading
   const goToStep = useCallback(
-    (stepIndex: number) => {
+    async (stepIndex: number) => {
       if (stepIndex >= 0 && stepIndex < formSteps.length) {
         if (canNavigateToStep(stepIndex)) {
+          // Load step data if not already loaded
+          if (!loadedSteps.has(stepIndex)) {
+            await loadStepData(stepIndex);
+          }
+
           setCurrentStep(stepIndex);
         } else {
-          toast({
-            title: "Step Locked",
+          toast.error("Step Locked", {
             description:
               "Please complete the previous steps before proceeding.",
-            variant: "destructive",
           });
         }
       }
     },
-    [canNavigateToStep, setCurrentStep, toast]
+    [canNavigateToStep, setCurrentStep, loadedSteps, loadStepData]
   );
 
   // REMOVED: Old isEvidenceRequired function that was causing incorrect evidence requirements
@@ -391,103 +399,129 @@ const CleanFormWizard = memo(function CleanFormWizard() {
       setIsNavigating(true);
 
       try {
-        // Step 1: Force save ALL pending changes with retry logic
-        let saveSuccess = false;
-        let retryCount = 0;
-        const maxRetries = 3;
+        // OPTIMIZATION: Check if we have unsaved changes first
+        const hasUnsavedChanges = state.hasUnsavedChanges;
+        const isCurrentlySaving = state.isSaving;
 
-        while (!saveSuccess && retryCount < maxRetries) {
-          console.log(
-            `🔄 Attempting to save all data (attempt ${
-              retryCount + 1
-            }/${maxRetries})`
-          );
+        console.log("🚀 Next button clicked:", {
+          hasUnsavedChanges,
+          isCurrentlySaving,
+          currentStep,
+        });
 
-          // Force save all pending changes
-          saveSuccess = await saveAllPendingChanges();
+        // OPTIMIZATION: Only save if needed, skip expensive validation
+        if (hasUnsavedChanges || isCurrentlySaving) {
+          console.log("💾 Data needs saving - performing quick save...");
+
+          // Show saving message
+          toast.info("Saving...", {
+            description: "Saving your progress before moving to next step",
+          });
+
+          // Step 1: Quick save without retry logic for faster performance
+          const saveSuccess = await saveAllPendingChanges();
 
           if (!saveSuccess) {
-            retryCount++;
-            if (retryCount < maxRetries) {
-              // Wait before retry
-              await new Promise((resolve) =>
-                setTimeout(resolve, 1000 * retryCount)
-              );
-            }
+            toast.error("Save Failed", {
+              description:
+                "Unable to save your data. Please check your connection and try again.",
+            });
+            setIsNavigating(false);
+            return;
           }
+
+          // Step 2: Short wait for save to complete
+          await new Promise((resolve) => setTimeout(resolve, 300)); // Reduced from 1000ms
+        } else {
+          console.log(
+            "✅ No unsaved changes - skipping save operations for faster navigation"
+          );
         }
 
-        if (!saveSuccess) {
-          toast({
-            title: "Save Failed",
-            description:
-              "Unable to save your data. Please check your connection and try again.",
-            variant: "destructive",
-          });
-          setIsNavigating(false);
-          return;
-        }
-
-        // Step 2: Wait for any remaining saves to complete
-        console.log("⏳ Waiting for all saves to complete...");
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-
-        // Step 3: Validate from database to ensure data is actually saved
-        console.log("🔍 Validating data from database...");
-        const dbValidation = await validateFromDatabase(currentStep);
-
-        if (!dbValidation.isValid) {
-          // Update validation info with database results
-          const validationInfo = {
-            isComplete: false,
-            missingItems: dbValidation.missingItems,
-            filledCount: 0, // Will be calculated
-            totalCount: 0, // Will be calculated
-          };
-
-          setValidationInfo(validationInfo);
-          setShowValidationDialog(true);
-
-          toast({
-            title: "Step Incomplete",
-            description:
-              "Please complete all required fields before proceeding.",
-            variant: "destructive",
-          });
-          setIsNavigating(false);
-          return;
-        }
-
-        // Step 4: Navigate to next step in sequence (not auto-skip to incomplete)
-        console.log(
-          "✅ All data saved and validated - navigating to next step"
-        );
+        // Step 3: Check if next step is accessible (not locked) - FAST LOCAL CHECK
         const nextStep = currentStep + 1;
+        const canNavigate = canNavigateToStep(nextStep);
+
+        if (!canNavigate) {
+          console.log("🚫 Next step is locked - cannot navigate");
+          console.log("🔍 Debugging step lock:", {
+            currentStep,
+            nextStep,
+            hasApplication: !!application,
+            institutionData: application?.institutionData,
+            pillarProgress: {
+              pillar1: getPillarProgress(1),
+              pillar2: getPillarProgress(2),
+              pillar3: getPillarProgress(3),
+              pillar4: getPillarProgress(4),
+              pillar5: getPillarProgress(5),
+            },
+          });
+
+          // Check what's specifically blocking navigation
+          let blockingReason = "Unknown reason";
+          if (nextStep === 1) {
+            const inst = application?.institutionData;
+            const missing = [];
+            if (!inst?.name?.trim()) missing.push("Institution Name");
+            if (!inst?.industry?.trim()) missing.push("Industry");
+            if (!inst?.organizationSize?.trim())
+              missing.push("Organization Size");
+            if (!inst?.country?.trim()) missing.push("Country");
+            if (!inst?.contactEmail?.trim()) missing.push("Contact Email");
+            blockingReason = `Institution setup incomplete: ${missing.join(
+              ", "
+            )}`;
+          } else {
+            const prevPillarId = nextStep - 1;
+            const progress = getPillarProgress(prevPillarId);
+            blockingReason = `Pillar ${prevPillarId} is ${Math.round(
+              progress.completion
+            )}% complete (needs 100%)`;
+          }
+
+          toast.error("Step Locked", {
+            description: `Cannot proceed: ${blockingReason}`,
+          });
+          setIsNavigating(false);
+          return;
+        }
+
+        // Step 4: Load next step data and navigate
+        console.log("✅ All checks passed - navigating to next step");
         console.log("🎯 Navigating to next step in sequence:", nextStep);
+
+        // Show moving message
+        toast.info("Moving to next step...", {
+          description: `Loading step ${nextStep + 1} data`,
+        });
+
+        // Load next step data if not already loaded
+        if (!loadedSteps.has(nextStep)) {
+          console.log(`🔄 Loading step ${nextStep} data...`);
+          await loadStepData(nextStep);
+        }
+
         setHasManuallyNavigated(true);
         setCurrentStep(nextStep);
 
         // Show completion celebration for high completion rates
         if (overallProgress.completion >= 80) {
-          toast({
-            title: "🎉 Almost There!",
+          toast.success("🎉 Almost There!", {
             description: `You're ${Math.round(
               overallProgress.completion
             )}% complete! Moving to next step...`,
           });
         } else {
-          toast({
-            title: "Step Completed",
+          toast.success("Step Completed", {
             description:
               "All data saved successfully. Moving to next step in sequence...",
           });
         }
       } catch (error) {
         console.error("❌ Error during navigation:", error);
-        toast({
-          title: "Navigation Error",
+        toast.error("Navigation Error", {
           description: "An error occurred while saving. Please try again.",
-          variant: "destructive",
         });
       } finally {
         setIsNavigating(false);
@@ -497,8 +531,13 @@ const CleanFormWizard = memo(function CleanFormWizard() {
     currentStep,
     setCurrentStep,
     saveAllPendingChanges,
-    validateFromDatabase,
+    canNavigateToStep,
     toast,
+    state.hasUnsavedChanges,
+    state.isSaving,
+    overallProgress.completion,
+    loadedSteps,
+    loadStepData,
   ]);
 
   const goToPreviousStep = useCallback(async () => {
@@ -517,29 +556,39 @@ const CleanFormWizard = memo(function CleanFormWizard() {
     }
   }, [currentStep, setCurrentStep]);
 
-  // Handle submit
+  // Handle submit with double-click prevention
   const handleSubmit = useCallback(async () => {
-    if (!application) return;
+    if (!application || isSubmitting) {
+      console.log("🚫 Submit blocked:", {
+        hasApplication: !!application,
+        isSubmitting,
+      });
+      return;
+    }
 
+    console.log("🚀 Starting application submission...");
     setIsSubmitting(true);
+
     try {
       await submitApplication();
-      toast({
-        title: "Application Submitted",
+      toast.success("Application Submitted", {
         description:
           "Your application has been submitted successfully. You will receive a confirmation email shortly.",
       });
+
+      // Redirect to dashboard after successful submission
+      setTimeout(() => {
+        router.push("/dashboard");
+      }, 2000); // Give time for the toast to show
     } catch (error) {
       console.error("Submit error:", error);
-      toast({
-        title: "Submission Failed",
+      toast.error("Submission Failed", {
         description: "Failed to submit your application. Please try again.",
-        variant: "destructive",
       });
     } finally {
       setIsSubmitting(false);
     }
-  }, [application, submitApplication, toast]);
+  }, [application, submitApplication, isSubmitting, router]);
 
   // No auto-navigation - users can manually navigate to review their data
   // This allows users to take time to review complex pillar forms
@@ -855,19 +904,6 @@ const CleanFormWizard = memo(function CleanFormWizard() {
 
                 {/* Action Buttons */}
                 <div className="space-y-2 pt-4 border-t">
-                  {application.status === "draft" && (
-                    <Button
-                      onClick={handleSubmit}
-                      disabled={
-                        isSubmitting || overallProgress.completion < 100
-                      }
-                      className="w-full"
-                    >
-                      <Lock className="h-4 w-4 mr-2" />
-                      Submit Application
-                    </Button>
-                  )}
-
                   {application.status === "submitted" && (
                     <Badge variant="default" className="w-full justify-center">
                       <CheckCircle className="h-4 w-4 mr-2" />
@@ -931,13 +967,15 @@ const CleanFormWizard = memo(function CleanFormWizard() {
                 {currentStep < formSteps.length - 1 ? (
                   <Button
                     onClick={goToNextStep}
-                    disabled={state.isNavigating}
+                    disabled={isNavigating}
                     className="transition-all duration-300"
                   >
-                    {state.isNavigating ? (
+                    {isNavigating ? (
                       <>
                         <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Saving...
+                        {state.hasUnsavedChanges || state.isSaving
+                          ? "Saving..."
+                          : "Moving..."}
                       </>
                     ) : (
                       <>
@@ -951,8 +989,17 @@ const CleanFormWizard = memo(function CleanFormWizard() {
                     onClick={handleSubmit}
                     disabled={isSubmitting || overallProgress.completion < 80}
                   >
-                    <Lock className="h-4 w-4 mr-2" />
-                    Submit Application
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Submitting...
+                      </>
+                    ) : (
+                      <>
+                        <Lock className="h-4 w-4 mr-2" />
+                        Submit Application
+                      </>
+                    )}
                   </Button>
                 )}
               </div>

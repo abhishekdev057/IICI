@@ -26,7 +26,7 @@ export interface PillarScore {
 export interface OverallScore {
   pillars: PillarScore[]
   overallScore: number // 0-100 percentage
-  certificationLevel: "GOLD" | "CERTIFIED" | "NOT_CERTIFIED"
+  certificationLevel: "CERTIFIED" | "NOT_CERTIFIED"
   recommendations: string[]
 }
 
@@ -218,9 +218,8 @@ export class ScoringEngine {
   /**
    * Determine certification level based on score
    */
-  private static determineCertificationLevel(score: number): "GOLD" | "CERTIFIED" | "NOT_CERTIFIED" {
-    if (score >= 85) return "GOLD"
-    if (score >= 70) return "CERTIFIED"
+  private static determineCertificationLevel(score: number): "CERTIFIED" | "NOT_CERTIFIED" {
+    if (score >= 60) return "CERTIFIED"
     return "NOT_CERTIFIED"
   }
 

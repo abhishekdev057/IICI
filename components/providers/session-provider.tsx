@@ -10,8 +10,13 @@ interface SessionProviderProps {
 export function AuthSessionProvider({ children }: SessionProviderProps) {
   return (
     <SessionProvider
-      refetchInterval={5 * 60} // Refetch session every 5 minutes
-      refetchOnWindowFocus={true}
+      refetchInterval={0} // Disable automatic refetching to reduce API calls
+      refetchOnWindowFocus={false} // Disable refetch on window focus
+      refetchWhenOffline={false} // Disable refetch when offline
+      // Add session configuration for better resilience
+      basePath="/api/auth"
+      // Increase session timeout tolerance
+      session={undefined} // Let NextAuth handle session management
     >
       {children}
     </SessionProvider>
