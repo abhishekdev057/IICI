@@ -1,29 +1,29 @@
-import { HeroSection } from "@/components/landing/hero-section"
-import { PillarsSection } from "@/components/landing/pillars-section"
-import { TestimonialsSection } from "@/components/landing/testimonials-section"
-import { UserStatusCTA } from "@/components/landing/user-status-cta"
-import { Navigation } from "@/components/layout/navigation"
-import { Footer } from "@/components/layout/footer"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import Link from "next/link"
-import { 
-  Award, 
-  Users, 
-  Target, 
-  TrendingUp, 
-  Shield, 
-  CheckCircle, 
-  ArrowRight, 
-  Building2, 
-  Globe, 
+import { HeroSection } from "@/components/landing/hero-section";
+import { PillarsSection } from "@/components/landing/pillars-section";
+import { TestimonialsSection } from "@/components/landing/testimonials-section";
+import { UserStatusCTA } from "@/components/landing/user-status-cta";
+import { Navigation } from "@/components/layout/navigation";
+import { Footer } from "@/components/layout/footer";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import Link from "next/link";
+import {
+  Award,
+  Users,
+  Target,
+  TrendingUp,
+  Shield,
+  CheckCircle,
+  ArrowRight,
+  Building2,
+  Globe,
   Lightbulb,
   FileText,
   Clock,
   Star,
-  Zap
-} from "lucide-react"
+  Zap,
+} from "lucide-react";
 
 export default function HomePage() {
   return (
@@ -39,18 +39,20 @@ export default function HomePage() {
           <div className="text-center mb-16">
             <Badge className="mb-4" variant="secondary">
               <Award className="w-4 h-4 mr-2" />
-              About IIICI
+              About Our Initiative
             </Badge>
             <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-6">
-              Leading Innovation Certification Platform
+              Transforming Agricultural Education Through Innovation
             </h2>
             <p className="text-lg text-muted-foreground max-w-3xl mx-auto">
-              IIICI (Investor in Institutional Innovation Certification) is the premier platform for assessing 
-              and certifying organizational innovation maturity. We help institutions build sustainable 
-              innovation capabilities through comprehensive evaluation and actionable insights.
+              Our exclusive initiative brings together 50 leading agricultural
+              universities in India to pioneer a new standard of academic
+              excellence and entrepreneurial success. Through the IIIC Index,
+              incubation support, and quarterly knowledge audits, we're building
+              the future of agricultural innovation.
             </p>
           </div>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <Card className="text-center">
               <CardHeader>
@@ -61,8 +63,10 @@ export default function HomePage() {
               </CardHeader>
               <CardContent>
                 <p className="text-muted-foreground">
-                  To empower organizations with the tools and insights needed to build world-class 
-                  innovation capabilities and drive sustainable growth.
+                  To empower agricultural universities with comprehensive
+                  innovation assessment tools, incubation support, and
+                  governance frameworks that transform research into real-world
+                  impact.
                 </p>
               </CardContent>
             </Card>
@@ -72,12 +76,13 @@ export default function HomePage() {
                 <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mx-auto mb-4">
                   <Globe className="w-6 h-6 text-primary" />
                 </div>
-                <CardTitle>Global Reach</CardTitle>
+                <CardTitle>National Impact</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-muted-foreground">
-                  Serving organizations worldwide with our comprehensive innovation assessment 
-                  framework and certification program.
+                  Exclusively serving 50 leading agricultural universities
+                  across India with our proprietary IIIC Index assessment and
+                  comprehensive innovation support programs.
                 </p>
               </CardContent>
             </Card>
@@ -87,12 +92,13 @@ export default function HomePage() {
                 <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mx-auto mb-4">
                   <Shield className="w-6 h-6 text-primary" />
                 </div>
-                <CardTitle>Trusted Standard</CardTitle>
+                <CardTitle>Proven Framework</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-muted-foreground">
-                  ISO-aligned certification process recognized by industry leaders and 
-                  innovation experts worldwide.
+                  Our proprietary IIIC Index framework provides data-driven
+                  insights and 5-star rating system recognized by leading
+                  agricultural institutions.
                 </p>
               </CardContent>
             </Card>
@@ -112,8 +118,8 @@ export default function HomePage() {
               Simple 4-Step Certification Process
             </h2>
             <p className="text-lg text-muted-foreground max-w-3xl mx-auto">
-              Our streamlined process makes it easy to assess your innovation maturity 
-              and achieve certification in just a few weeks.
+              Our streamlined process makes it easy to assess your innovation
+              maturity and achieve certification in just a few weeks.
             </p>
           </div>
 
@@ -124,7 +130,8 @@ export default function HomePage() {
               </div>
               <h3 className="text-xl font-semibold mb-4">Register & Setup</h3>
               <p className="text-muted-foreground">
-                Create your account and provide basic organization information to get started.
+                Create your account and provide basic organization information
+                to get started.
               </p>
             </div>
 
@@ -132,9 +139,12 @@ export default function HomePage() {
               <div className="w-16 h-16 bg-primary rounded-full flex items-center justify-center mx-auto mb-6 text-white font-bold text-xl">
                 2
               </div>
-              <h3 className="text-xl font-semibold mb-4">Complete Assessment</h3>
+              <h3 className="text-xl font-semibold mb-4">
+                Complete Assessment
+              </h3>
               <p className="text-muted-foreground">
-                Fill out the comprehensive assessment across all 6 innovation pillars with supporting evidence.
+                Fill out the comprehensive assessment across all 6 innovation
+                pillars with supporting evidence.
               </p>
             </div>
 
@@ -144,7 +154,8 @@ export default function HomePage() {
               </div>
               <h3 className="text-xl font-semibold mb-4">Review & Analysis</h3>
               <p className="text-muted-foreground">
-                Our expert team reviews your submission and provides detailed analysis and recommendations.
+                Our expert team reviews your submission and provides detailed
+                analysis and recommendations.
               </p>
             </div>
 
@@ -154,7 +165,8 @@ export default function HomePage() {
               </div>
               <h3 className="text-xl font-semibold mb-4">Get Certified</h3>
               <p className="text-muted-foreground">
-                Receive your certification and detailed improvement roadmap for continued innovation growth.
+                Receive your certification and detailed improvement roadmap for
+                continued innovation growth.
               </p>
             </div>
           </div>
@@ -177,8 +189,9 @@ export default function HomePage() {
               Discover Innovation Excellence
             </h2>
             <p className="text-lg text-muted-foreground max-w-3xl mx-auto">
-              Explore our resources and learn how IIICI certification can transform your organization's 
-              innovation capabilities and drive sustainable growth.
+              Explore our resources and learn how IIICI certification can
+              transform your organization's innovation capabilities and drive
+              sustainable growth.
             </p>
           </div>
 
@@ -192,12 +205,12 @@ export default function HomePage() {
               </CardHeader>
               <CardContent>
                 <p className="text-muted-foreground mb-4">
-                  Explore real-world examples of organizations that have achieved innovation excellence 
-                  through IIICI certification.
+                  Explore real-world examples of organizations that have
+                  achieved innovation excellence through IIICI certification.
                 </p>
-                <Button 
-                  variant="outline" 
-                  className="w-full mt-4 group-hover:bg-blue-50 group-hover:border-blue-300 group-hover:text-blue-700 transition-all duration-200" 
+                <Button
+                  variant="outline"
+                  className="w-full mt-4 group-hover:bg-blue-50 group-hover:border-blue-300 group-hover:text-blue-700 transition-all duration-200"
                   asChild
                 >
                   <Link href="/case-studies">
@@ -217,12 +230,12 @@ export default function HomePage() {
               </CardHeader>
               <CardContent>
                 <p className="text-muted-foreground mb-4">
-                  Access the latest research, trends, and best practices in organizational innovation 
-                  and capability building.
+                  Access the latest research, trends, and best practices in
+                  organizational innovation and capability building.
                 </p>
-                <Button 
-                  variant="outline" 
-                  className="w-full mt-4 group-hover:bg-green-50 group-hover:border-green-300 group-hover:text-green-700 transition-all duration-200" 
+                <Button
+                  variant="outline"
+                  className="w-full mt-4 group-hover:bg-green-50 group-hover:border-green-300 group-hover:text-green-700 transition-all duration-200"
                   asChild
                 >
                   <Link href="/insights">
@@ -242,12 +255,12 @@ export default function HomePage() {
               </CardHeader>
               <CardContent>
                 <p className="text-muted-foreground mb-4">
-                  Connect with innovation experts, certified organizations, and thought leaders 
-                  in the IIICI community.
+                  Connect with innovation experts, certified organizations, and
+                  thought leaders in the IIICI community.
                 </p>
-                <Button 
-                  variant="outline" 
-                  className="w-full mt-4 group-hover:bg-purple-50 group-hover:border-purple-300 group-hover:text-purple-700 transition-all duration-200" 
+                <Button
+                  variant="outline"
+                  className="w-full mt-4 group-hover:bg-purple-50 group-hover:border-purple-300 group-hover:text-purple-700 transition-all duration-200"
                   asChild
                 >
                   <Link href="/network">
@@ -273,10 +286,11 @@ export default function HomePage() {
               Frequently Asked Questions
             </h2>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Everything you need to know about IIICI certification and the innovation assessment process.
+              Everything you need to know about IIICI certification and the
+              innovation assessment process.
             </p>
           </div>
-          
+
           <div className="max-w-4xl mx-auto space-y-6">
             <div className="card-feature p-6 border-l-4 border-l-primary hover:shadow-md transition-shadow">
               <h3 className="font-semibold text-lg mb-3 text-foreground flex items-center">
@@ -284,41 +298,47 @@ export default function HomePage() {
                 How long is certification valid?
               </h3>
               <p className="text-muted-foreground">
-                IIICI certification is valid for one year from the date of issuance. Organizations can reapply annually
-                to maintain their certification status and track improvement over time.
+                IIICI certification is valid for one year from the date of
+                issuance. Organizations can reapply annually to maintain their
+                certification status and track improvement over time.
               </p>
             </div>
-            
+
             <div className="card-feature p-6 border-l-4 border-l-accent hover:shadow-md transition-shadow">
               <h3 className="font-semibold text-lg mb-3 text-foreground flex items-center">
                 <Zap className="w-5 h-5 text-accent mr-2" />
                 What are the certification thresholds?
               </h3>
               <p className="text-muted-foreground">
-                Gold Certification requires ≥85% overall score, Standard Certification requires ≥70%, and scores below
-                70% receive detailed improvement recommendations with 90-day action plans.
+                Gold Certification requires ≥85% overall score, Standard
+                Certification requires ≥70%, and scores below 70% receive
+                detailed improvement recommendations with 90-day action plans.
               </p>
             </div>
-            
+
             <div className="card-feature p-6 border-l-4 border-l-chart-1 hover:shadow-md transition-shadow">
               <h3 className="font-semibold text-lg mb-3 text-foreground flex items-center">
                 <TrendingUp className="w-5 h-5 text-chart-1 mr-2" />
                 How does the scoring work?
               </h3>
               <p className="text-muted-foreground">
-                Each of the 6 pillars contains multiple indicators that are scored and normalized. The overall score is
-                the weighted average of all pillar scores, providing a comprehensive view of innovation maturity.
+                Each of the 6 pillars contains multiple indicators that are
+                scored and normalized. The overall score is the weighted average
+                of all pillar scores, providing a comprehensive view of
+                innovation maturity.
               </p>
             </div>
-            
+
             <div className="card-feature p-6 border-l-4 border-l-chart-2 hover:shadow-md transition-shadow">
               <h3 className="font-semibold text-lg mb-3 text-foreground flex items-center">
                 <Building2 className="w-5 h-5 text-chart-2 mr-2" />
                 What evidence is required?
               </h3>
               <p className="text-muted-foreground">
-                Each indicator requires supporting evidence such as documents, links, or detailed descriptions. Our
-                platform guides you through the evidence collection process with clear requirements and examples.
+                Each indicator requires supporting evidence such as documents,
+                links, or detailed descriptions. Our platform guides you through
+                the evidence collection process with clear requirements and
+                examples.
               </p>
             </div>
 
@@ -328,8 +348,10 @@ export default function HomePage() {
                 How long does the process take?
               </h3>
               <p className="text-muted-foreground">
-                The complete certification process typically takes 4-6 weeks from initial registration to final 
-                certification. This includes assessment completion, review period, and certification issuance.
+                The complete certification process typically takes 4-6 weeks
+                from initial registration to final certification. This includes
+                assessment completion, review period, and certification
+                issuance.
               </p>
             </div>
 
@@ -339,9 +361,78 @@ export default function HomePage() {
                 What are the benefits of certification?
               </h3>
               <p className="text-muted-foreground">
-                IIICI certification demonstrates innovation excellence, enhances market credibility, 
-                attracts investment, improves operational efficiency, and provides a roadmap for continuous improvement.
+                IIICI certification demonstrates innovation excellence, enhances
+                market credibility, attracts investment, improves operational
+                efficiency, and provides a roadmap for continuous improvement.
               </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Contact Section */}
+      <section className="py-20 bg-primary text-primary-foreground">
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-bold mb-6">
+              Contact Us Today
+            </h2>
+            <p className="text-xl text-primary-foreground/90 max-w-3xl mx-auto mb-8">
+              Contact us today to enroll your university in the IIIC Index
+              Assessment Program.
+            </p>
+          </div>
+
+          <div className="max-w-4xl mx-auto">
+            <div className="grid md:grid-cols-2 gap-8">
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-xl font-semibold mb-3">Nodal Agency</h3>
+                  <p className="text-primary-foreground/90">
+                    Bharat Innovation Research and Development Cooperative Forum
+                    (BIRD CO-OP Forum)
+                  </p>
+                </div>
+
+                <div>
+                  <h3 className="text-xl font-semibold mb-3">
+                    Proprietary Index by
+                  </h3>
+                  <p className="text-primary-foreground/90">
+                    Circularecosystem International Private Limited (CIPL)
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-xl font-semibold mb-3">
+                    Contact Information
+                  </h3>
+                  <div className="space-y-2">
+                    <p className="text-primary-foreground/90">
+                      <strong>Email:</strong> Dr.rawat@bharatinnovation.org
+                    </p>
+                    <p className="text-primary-foreground/90">
+                      <strong>Website:</strong> www.bharatinnovation.org
+                    </p>
+                  </div>
+                </div>
+
+                <div className="pt-4">
+                  <Button
+                    size="lg"
+                    variant="secondary"
+                    className="bg-white text-primary hover:bg-white/90 font-semibold px-8 py-3"
+                    asChild
+                  >
+                    <Link href="/contact">
+                      Get in Touch
+                      <ArrowRight className="w-4 h-4 ml-2" />
+                    </Link>
+                  </Button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -349,5 +440,5 @@ export default function HomePage() {
 
       <Footer variant="landing" />
     </main>
-  )
+  );
 }
